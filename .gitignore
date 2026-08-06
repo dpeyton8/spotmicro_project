@@ -1,0 +1,14 @@
+mike_mujoco_ws/.venv/
+mike_mujoco_ws/build/
+mike_mujoco_ws/install/
+mike_mujoco_ws/log/
+log/
+setup_logs/
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.DS_Store
+**/*.swp
+**/*.swo
+**/*.egg-info/

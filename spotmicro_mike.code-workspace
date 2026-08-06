@@ -1,0 +1,42 @@
+{
+    "folders": [
+        {
+            "name": "Spot Micro Project",
+            "path": "."
+        },
+        {
+            "name": "Mike Physical Reference",
+            "path": "physical/spotMicro"
+        },
+        {
+            "name": "Mike ROS2 MuJoCo",
+            "path": "mike_mujoco_ws/src/spotMicro"
+        },
+        {
+            "name": "Documentation",
+            "path": "docs"
+        },
+        {
+            "name": "Audit and Logs",
+            "path": "audit"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/__pycache__": true,
+            "**/*.pyc": true,
+            "mike_mujoco_ws/build": true,
+            "mike_mujoco_ws/install": true,
+            "mike_mujoco_ws/log": true,
+            "mike_mujoco_ws/.venv": true
+        },
+        "search.exclude": {
+            "**/.git": true,
+            "**/__pycache__": true,
+            "mike_mujoco_ws/build": true,
+            "mike_mujoco_ws/install": true,
+            "mike_mujoco_ws/log": true,
+            "mike_mujoco_ws/.venv": true
+        }
+    }
+}
