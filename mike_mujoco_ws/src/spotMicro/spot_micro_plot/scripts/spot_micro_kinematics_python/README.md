@@ -84,8 +84,13 @@ sm.set_body_angles(theta=10*pi/180.0)
 Leg coordinates and leg joint angles can be retreived as follows:
 
 ```python
-# Get leg coordinates
+# Get leg coordinates (each leg returns a 4-tuple of 4 points: hip, hip-joint, knee, foot)
 coords = sm.get_leg_coordinates()
+
+# If you want to set the feet positions back into the model, extract only the foot point (index 3)
+import numpy as np
+foot_coords = np.array([leg_points[3] for leg_points in coords])
+sm.set_absolute_foot_coordinates(foot_coords)
 
 # Get leg angles
 leg_angs = sm.get_leg_angles()
@@ -99,7 +104,7 @@ Additionally, this library assumes an idealized leg geometry compared to the act
 
 ## Unit tests
 This library contains some unit tests. They can be run by cloning the library, cd'ing to the root directory of the project, and then running the following command:
-```python -m unittest discover -t ..```
+```python -m unittest discover -s spot_micro_kinematics_python -t .```
 
 ## Plotting
 Some basic plotting scripts are also provided in the tests folder. These require matplotlib. They can be executed by cd'ing to a directory one level above where this library is checked out, and running a command as folloiws if this library were checked out to a directory called smkpython:
