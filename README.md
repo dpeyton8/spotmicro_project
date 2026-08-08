@@ -1,4 +1,4 @@
-SpotMicro MuJoCo — Handoff for Alanah
+SpotMicro MuJoCo 
 
 Purpose
 -------
