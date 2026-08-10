@@ -195,5 +195,62 @@ class TestLeftRightFrontBackSymmetry(unittest.TestCase):
         self.assertAlmostEqual(lf[0], lb[0], delta=self.TOL)
 
 
+class TestIKBranchSelection(unittest.TestCase):
+    """Both legs12=True and legs12=False are valid FK-consistent solutions
+    for a reachable target (elbow-up vs elbow-down); ikine() does not
+    auto-select, the caller must choose. Tolerance: 1e-9 rad for the
+    FK-consistency check (same pure-floating-point-round-trip reasoning
+    as TestFKIKRoundTrip).
+    """
+    TOL = 1e-9
+
+    def test_both_branches_are_fk_consistent_but_differ(self):
+        l1, l2, l3 = 0.055, 0.1075, 0.130
+        x4, y4, z4 = 0.05, -0.15, 0.05
+        q_true = smk.ikine(x4, y4, z4, l1, l2, l3, legs12=True)
+        q_false = smk.ikine(x4, y4, z4, l1, l2, l3, legs12=False)
+        # Different solutions (branch actually changes the answer)
+        self.assertGreater(abs(q_true[2] - q_false[2]), 1e-3)
+        # Both reproduce the same foot position via forward kinematics
+        for q in (q_true, q_false):
+            t = smk.t_0_to_4(q[0], q[1], q[2], l1, l2, l3)
+            np.testing.assert_allclose(t[0:3, 3], [x4, y4, z4], atol=self.TOL)
+
+
+class TestWorkspaceBoundariesAndSingularities(unittest.TestCase):
+    """Tolerance: exact ValueError checks need no floating tolerance. The
+    D=1 singularity check uses 1e-6 rad, looser than the round-trip tests'
+    1e-9 -- verified numerically that q3 at this exact boundary comes out
+    ~2e-8 rad off zero (not exactly 0) due to float precision in
+    sqrt(1-D**2) when D is extremely close to 1; this is expected
+    precision loss right at a singular point, not a bug.
+    """
+    l1, l2, l3 = 0.055, 0.1075, 0.130
+
+    def test_target_inside_hip_swing_cylinder_raises(self):
+        # x4^2 + y4^2 < l1^2 makes the q1 sqrt term's argument negative
+        with self.assertRaises(ValueError):
+            smk.ikine(0.01, 0.01, 0.05, self.l1, self.l2, self.l3)
+
+    def test_target_beyond_max_reach_raises(self):
+        # D > 1: target farther than l2+l3 (in the reduced radial/z plane)
+        # from the hip-swing joint
+        far = self.l1 + self.l2 + self.l3 + 0.5
+        with self.assertRaises(ValueError):
+            smk.ikine(far, 0, 0, self.l1, self.l2, self.l3)
+
+    def test_fully_extended_leg_singularity_d_equals_one(self):
+        # D == 1 (theta3 == 0, straight leg) is the boundary between
+        # reachable and unreachable -- must not raise, and FK must
+        # reproduce the target. With y4=z4=0, D=1 requires
+        # x4 = sqrt(l1^2 + (l2+l3)^2), NOT x4=l1+l2+l3 (that formula is
+        # only valid for a planar 2-link arm without the l1 offset).
+        x4 = sqrt(self.l1**2 + (self.l2 + self.l3)**2)
+        q = smk.ikine(x4, 0, 0, self.l1, self.l2, self.l3)
+        self.assertAlmostEqual(q[2], 0.0, delta=1e-6)
+        t = smk.t_0_to_4(q[0], q[1], q[2], self.l1, self.l2, self.l3)
+        np.testing.assert_allclose(t[0:3, 3], [x4, 0, 0], atol=1e-6)
+
+
 if __name__ == '__main__':
     unittest.main()
