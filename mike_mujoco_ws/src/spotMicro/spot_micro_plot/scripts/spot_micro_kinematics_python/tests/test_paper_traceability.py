@@ -6,16 +6,19 @@ See docs/IK_PAPER_TRACEABILITY.md for the full equation-by-equation
 mapping these tests are evidence for.
 """
 import unittest
-from math import radians, degrees, atan2, sqrt
+from math import radians, degrees, atan2, sqrt, pi
 import numpy as np
 
 from ..utilities import transformations as tf
 from ..utilities import spot_micro_kinematics as smk
+from ..spot_micro_stick_figure import SpotMicroStickFigure
 
 # Paper's Table 1 dimensions (NOT SpotMicro's real hardware dimensions --
 # these are the paper's own example robot).
 PAPER_L1, PAPER_L2, PAPER_L3 = 0.1, 0.4, 0.4
 PAPER_L, PAPER_W = 1.0, 0.4
+
+d2r = pi / 180
 
 
 def paper_t_m(xm, ym, zm, yaw_deg, pitch_deg, roll_deg):
@@ -127,6 +130,69 @@ class TestPaperTable3Example1Unresolved(unittest.TestCase):
                 infeasible.append(name)
         # Documents the actual, reproduced finding -- not a paper claim.
         self.assertEqual(sorted(infeasible), ['leftback', 'rightback'])
+
+
+class TestFKIKRoundTrip(unittest.TestCase):
+    """FK -> IK -> FK round trips at SpotMicro's real hardware dimensions.
+    Tolerance: 1e-9 radians -- this is a pure floating-point round trip
+    through the same equations, not an independent solve, so error should
+    be within a couple orders of magnitude of machine epsilon (~2.2e-16).
+    """
+    TOL = 1e-9
+
+    def _round_trip(self, x=0, y=0.18, z=0, phi=0, theta=0, psi=0):
+        sm = SpotMicroStickFigure(x=x, y=y, z=z, phi=phi, theta=theta, psi=psi)
+        orig_angles = np.array(sm.get_leg_angles())
+        coords = sm.get_leg_coordinates()
+        foot_coords = np.array([leg[3] for leg in coords])
+        sm2 = SpotMicroStickFigure(x=x, y=y, z=z, phi=phi, theta=theta, psi=psi)
+        sm2.set_absolute_foot_coordinates(foot_coords)
+        new_angles = np.array(sm2.get_leg_angles())
+        np.testing.assert_allclose(orig_angles, new_angles, atol=self.TOL)
+        return orig_angles, new_angles
+
+    def test_default_pose_all_four_legs(self):
+        self._round_trip()
+
+    def test_nonzero_roll(self):
+        self._round_trip(phi=15 * d2r)
+
+    def test_nonzero_pitch(self):
+        self._round_trip(theta=10 * d2r)
+
+    def test_nonzero_yaw(self):
+        self._round_trip(psi=20 * d2r)
+
+    def test_combined_roll_pitch_yaw(self):
+        self._round_trip(phi=12 * d2r, theta=-8 * d2r, psi=25 * d2r)
+
+
+class TestLeftRightFrontBackSymmetry(unittest.TestCase):
+    """SpotMicro's default stance is bilaterally symmetric; verify the
+    joint-angle magnitudes reflect that symmetry through the IK/FK code
+    at zero body orientation. Tolerance: 1e-9 radians -- comparing two
+    branches of the same floating-point computation, not independently
+    derived values.
+    """
+    TOL = 1e-9
+
+    def test_left_right_hip_angles_mirror_at_default_pose(self):
+        sm = SpotMicroStickFigure()
+        rb, rf, lf, lb = sm.get_leg_angles()
+        # rightback/leftback and rightfront/leftfront are mirror pairs;
+        # q1 (side-swing) matches, q2/q3 flip sign, per the default angle
+        # assignment in the constructor (rb=[0,-30d2r,60d2r],
+        # lb=[0,30d2r,-60d2r], etc -- spot_micro_stick_figure.py:209-212).
+        # Confirmed against actual get_leg_angles() output before writing
+        # this assertion, not assumed.
+        np.testing.assert_allclose([rb[0], -rb[1], -rb[2]], lb, atol=self.TOL)
+        np.testing.assert_allclose([rf[0], -rf[1], -rf[2]], lf, atol=self.TOL)
+
+    def test_front_back_same_side_share_hip_swing_zero(self):
+        sm = SpotMicroStickFigure()
+        rb, rf, lf, lb = sm.get_leg_angles()
+        self.assertAlmostEqual(rb[0], rf[0], delta=self.TOL)
+        self.assertAlmostEqual(lf[0], lb[0], delta=self.TOL)
 
 
 if __name__ == '__main__':
