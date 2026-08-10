@@ -7,6 +7,6 @@ setup(
     author='Mike Romanko',
     author_email='foomail@foo.com',
     packages=['spot_micro_kinematics', 'spot_micro_kinematics.utilities'],
-    package_dir={'spot_micro_kinematics': 'spot_micro_kinematics_python'},
-    install_requires=['numpy'],
+    package_dir={'spot_micro_kinematics': '.'},
+    install_requires=['numpy', 'matplotlib'],
 )
