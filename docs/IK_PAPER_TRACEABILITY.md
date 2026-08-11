@@ -144,28 +144,37 @@ axis.**
 
 ### What Table 3's own numbers show [Test-demonstrated]
 
-Independently of the figure, Table 3's three worked examples all show leg
-1 and leg 4 sharing one `|θ1|` magnitude, and legs 2 and 3 sharing a
-different one, across all three examples (e.g. Example 1: legs 1,4 both
-give `|θ1|=7.5883°`; legs 2,3 both give `|θ1|=11.5735°`). This is exactly
-consistent with {1,4} and {2,3} being the figure's two end-clusters,
-where the two legs *within* an end-cluster are left/right mirror images
-of each other (mirrored θ1 sign convention aside, matching magnitudes).
-`TestPaperTable3ExamplesUnresolved` in the test suite reproduces these
-Table 3 numbers directly from the PDF and preserves this pattern as
-transcribed (see Section 5 for what does and doesn't reproduce
-computationally).
+Table 3's three worked examples all show leg 1 and leg 4 sharing one
+`|θ1|` magnitude, and legs 2 and 3 sharing a different one, across all
+three examples (e.g. Example 1: legs 1,4 both give `|θ1|=7.5883°`; legs
+2,3 both give `|θ1|=11.5735°`). On its own, this numeric pattern only
+establishes that legs 1↔4 and legs 2↔3 are mirror-symmetric *pairs* in
+whatever coordinate system the paper's program used — a purely numeric
+fact, with no coordinate frame drawn. It does **not**, by itself,
+establish that these pairs correspond to Fig. 1's spatial front/back
+end-clusters specifically, as opposed to some other pairing; that
+spatial identification comes from the figure (previous subsection), not
+from the numbers. `TestPaperTable3ExamplesUnresolved` in the test suite
+reproduces these Table 3 numbers directly from the PDF and preserves
+this pattern as transcribed (see Section 5 for what does and doesn't
+reproduce computationally).
 
-**Conclusion: {1,4} and {2,3} are the figure's two end-groups (confirmed
-by both the figure layout and Table 3's mirror-symmetric numbers, two
-independent sources agreeing). The paper's separate branch-selection
-grouping — "the legs of the robot (1 and 3) and the leg of the robot (2
-and 4)" (p.287, prose immediately before Eq.15) — is a *different*
-partition of the same four legs: it pairs one leg from each end-cluster
-together, not the two legs within an end-cluster.** These are not
-reconcilable into a single grouping; the paper uses both, for different
-purposes (Fig. 1's spatial layout vs. Eq.17's branch selection), and nothing
-in the paper claims they should coincide.
+**Conclusion: {1,4} and {2,3} are the figure's two end-groups, per Fig.
+1's spatial layout (previous subsection). Table 3's matching `|θ1|`
+pairing is *consistent with* that same partition — the same two pairs of
+legs, {1,4} and {2,3}, turn up as the mirror-symmetric pairs in the
+numbers too — but the numeric pairing alone does not independently
+establish the front/back spatial interpretation; it only confirms that
+whichever pairing the figure shows is at least self-consistent with a
+real mirror-symmetry in the paper's own worked examples. The paper's
+separate branch-selection grouping — "the legs of the robot (1 and 3)
+and the leg of the robot (2 and 4)" (p.287, prose immediately before
+Eq.15) — is a *different* partition of the same four legs: it pairs one
+leg from each end-cluster together, not the two legs within an
+end-cluster.** These are not reconcilable into a single grouping; the
+paper uses both, for different purposes (Fig. 1's spatial layout vs.
+Eq.17's branch selection), and nothing in the paper claims they should
+coincide.
 
 ### What remains genuinely uncertain
 
@@ -496,20 +505,52 @@ individually) — but it is not proven, and this document does not claim
 otherwise. Whether Table 3 is reproducible with the authors' original
 program cannot be determined without that program; see Section 9.
 
-**Singularity at `D = ±1`.** [Test-demonstrated]: `TestJacobianSingularity`
-computes a finite-difference Jacobian of the foot position with respect
-to `(q1,q2,q3)` via `t_0_to_4`, and checks its rank via SVD. At a regular
-(non-boundary) configuration, the Jacobian is full rank (3). At `D=+1`
-(`θ3=0`, fully extended) and `D=-1` (`θ3=π`, fully folded — governed by
-the minimum planar reach `|L2-L3|`, not `L2+L3`), the Jacobian is
-rank-deficient (rank 2), with the smallest singular value 3-8 orders of
-magnitude below the other two at both points. This directly supports —
-rather than merely asserts — the "rank-deficient Jacobian" characterization
-of these boundary configurations. `ikine()` still returns a finite,
-FK-consistent answer exactly at both boundaries (see
-`TestWorkspaceBoundariesAndSingularities`), it just does so at a point
-where the mapping from joint velocities to foot velocity loses a degree
-of freedom.
+**Singularity at `D = ±1` — three distinct claims, kept in three
+separate places.** It's easy to blur "the leg is mathematically singular
+here," "the numbers get badly conditioned as you approach that point,"
+and "the code throws an exception near that point" into one claim. They
+are not the same claim, and this document (and its tests) keep them
+separate:
+
+1. **Exact mathematical singularity, demonstrated directly in joint
+   space.** [Test-demonstrated] by `TestJacobianSingularity`: a
+   finite-difference Jacobian of the foot position with respect to
+   `(q1,q2,q3)`, evaluated via `t_0_to_4` at *fixed joint angles* — `θ3=0`
+   exactly (fully extended, `D=+1`) and `θ3=±π` exactly (fully folded,
+   `D=-1` — governed by the minimum planar reach `|L2-L3|`, not `L2+L3`),
+   each at three different, arbitrary, nonsingular `(θ1,θ2)` pairs, plus
+   a regular (non-boundary) configuration as a control. This
+   *deliberately does not go through `ikine()` at all* — no Cartesian
+   target, no boundary rounding, nothing but the forward-kinematics
+   equations and calculus. Result: the regular configuration's smallest
+   singular value is a substantial fraction of the largest
+   (ratio ≈ 0.13); every `θ3=0` or `θ3=±π` configuration's smallest
+   singular value is ten-or-more orders of magnitude below the largest
+   (ratio ≈ 1e-13 to 5e-11), consistent with the true mathematical value
+   being exactly zero and the measured value being finite-difference/
+   floating-point noise. See the singular values recorded directly in
+   `TestJacobianSingularity`'s docstring and assertion messages. **This
+   is the actual proof of rank-deficiency; the other two items below are
+   not.**
+2. **Near-boundary numerical behavior**, i.e. what happens to the
+   Jacobian or to `ikine()` at configurations *close to but not at* a
+   singularity, is a genuinely different, softer question (how conditioning
+   degrades as you approach) that this document does not attempt to
+   characterize quantitatively — only the exact points above are analyzed.
+3. **Python `ikine()`'s exact-boundary rounding failure** at the
+   constructed `D=-1` Cartesian target is a separate, IK-specific
+   implementation behavior — see the next paragraph — and is
+   [Test-demonstrated] by `TestWorkspaceBoundariesAndSingularities`, not
+   by `TestJacobianSingularity`. It shows that reaching the exact `D=-1`
+   *Cartesian target* through `ikine()` fails for float-rounding reasons;
+   it says nothing by itself about whether the underlying configuration
+   is a mathematical singularity (item 1 answers that, independently).
+
+`ikine()` returns a finite, FK-consistent answer exactly at the `D=+1`
+joint-space singularity when reached from a Cartesian target (see
+`TestWorkspaceBoundariesAndSingularities`'s extension test) — the
+mapping from joint velocities to foot velocity still loses a degree of
+freedom there even though `ikine()` itself doesn't error out.
 
 **Unreachable-target domain errors and floating-point boundary behavior.**
 `ikine()` uses `math.sqrt`, which raises `ValueError` (not `nan`) on a
@@ -521,17 +562,23 @@ max/min leg reach in the L2/L3 plane — `q3`'s `sqrt(1-D**2)` argument
 goes negative). Both, plus their exact-boundary and near-boundary cases
 on both sides, are [Test-demonstrated] by
 `TestWorkspaceBoundariesAndSingularities`. One boundary case is worth
-calling out specifically: **the exact analytic `D=-1` point (minimum
-planar reach, `|L2-L3|`) raises `ValueError` in practice**, even though
-it is mathematically a valid, reachable (if singular) configuration —
-float rounding computes `D` as very slightly less than `-1` (about
-`-1 - 4.4e-16` at SpotMicro's dimensions) rather than exactly `-1`. This
-is a concrete, reproduced instance of the "`D` slightly outside `[-1,1]`
-purely from numerical rounding" scenario. **Recommended follow-up work
-(not made in this documentation PR):** SpotMicro's own C++ port of this
-same kinematics library already handles this — see Section 6 — by
-clamping `D` to `[-1,1]` and the `q1`/`q2` shared `sqrt` argument to `≥0`
-before taking the square root
+calling out specifically, as item 3 above: **the exact analytic `D=-1`
+point (minimum planar reach, `|L2-L3|`) raises `ValueError` in practice**
+when approached via `ikine()` from a constructed Cartesian target, even
+though item 1 above independently establishes that the underlying
+joint-space configuration is a valid, reachable (if singular)
+configuration — float rounding computes `D` as very slightly less than
+`-1` (about `-1 - 4.4e-16` at SpotMicro's dimensions) rather than exactly
+`-1` when the target is built from the analytic formula and run through
+`ikine()`. This is a concrete, reproduced instance of the "`D` slightly
+outside `[-1,1]` purely from numerical rounding" scenario — an
+**IK-specific rounding artifact**, not evidence about the Jacobian one
+way or the other (item 1 settles the Jacobian question on its own, via a
+route that never touches `ikine()` or this rounding behavior).
+**Recommended follow-up work (not made in this documentation PR):**
+SpotMicro's own C++ port of this same kinematics library already handles
+this — see Section 6 — by clamping `D` to `[-1,1]` and the `q1`/`q2`
+shared `sqrt` argument to `≥0` before taking the square root
 (`spot_micro_motion_cmd/libs/spot_micro_kinematics_cpp/src/utils.cpp`,
 `ikine()`). Porting that same clamping to the Python `ikine()` would make
 it robust to exactly this class of float-rounding domain error, and
@@ -655,14 +702,17 @@ comparison above.
   analytic value (not exactly on it) due to float precision in
   `sqrt(1-D**2)` — expected precision loss at a singular point, not a
   bug.
-- **Jacobian rank checks** (`TestJacobianSingularity`): rank computed via
-  `numpy.linalg.matrix_rank(J, tol=1e-6)`, i.e. singular values below
-  `1e-6` are treated as zero. Chosen because the smallest singular value
-  at both `D=±1` singularities came out ~1e-9 (`D=1`) and ~9e-7 (`D=-1`)
-  during development, several orders of magnitude below the other two
-  singular values (~0.06-0.27) at the same points, and below the regular
-  configuration's smallest singular value (~0.069) — a clean separation,
-  not a borderline call. Finite-difference step `h=1e-6`.
+- **Jacobian rank checks** (`TestJacobianSingularity`): evaluated directly
+  in joint space at `θ3=0`/`θ3=±π` (not via `ikine()` on a constructed
+  Cartesian target — see Section 5's three-way singularity distinction),
+  so there is no IK-boundary rounding to contend with. Rank judged by the
+  smallest/largest singular-value *ratio*, not an absolute cutoff:
+  `< 1e-8` counts as singular, `> 1e-2` counts as regular. Both
+  thresholds sit in the wide gap between what was actually measured
+  during development — singular configurations' ratios were ~1e-13 to
+  5e-11, the regular configuration's ratio was ~0.13 — with several
+  orders of magnitude of margin on both sides of each threshold, not a
+  borderline call. Finite-difference step `h=1e-6`.
 - **`TestPaperTable3ExamplesUnresolved`**: exact equality on which legs
   are infeasible (`D > 1` or the hip-cylinder domain check failing), no
   floating tolerance involved — this test checks a boolean
@@ -678,9 +728,12 @@ comparison above.
   `smk.t_0_to_4` against a from-scratch Rodrigues'-formula
   reimplementation that calls no production FK code, at both the paper's
   and SpotMicro's dimensions.
-- `TestJacobianSingularity` — Section 5's rank-deficient-Jacobian claim
-  at `D=+1` and `D=-1`, via numerical SVD, against a regular-configuration
-  control case.
+- `TestJacobianSingularity` — Section 5's rank-deficient-Jacobian claim,
+  evaluated directly in joint space at `θ3=0` and `θ3=±π` (the exact
+  mathematical singularities, independent of `ikine()`'s boundary
+  rounding) via numerical SVD, against a regular-configuration control
+  case. Kept deliberately separate from
+  `TestWorkspaceBoundariesAndSingularities`'s IK-rounding tests below.
 - `TestPaperTable3ExamplesUnresolved` — Section 5's open Table 3
   reproduction discrepancy across all three published examples, as an
   executable, reproducible record of what was tried (including both

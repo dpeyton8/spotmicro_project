@@ -168,23 +168,59 @@ class TestIndependentForwardKinematicsReference(unittest.TestCase):
 
 class TestJacobianSingularity(unittest.TestCase):
     """Supports the D=+-1 rank-deficient-Jacobian statement in
-    docs/IK_PAPER_TRACEABILITY.md Sec.5 with an actual numerical check,
-    rather than leaving it as an unverified "mathematically expected"
-    claim. Computes a finite-difference Jacobian of the foot position
-    w.r.t. (q1,q2,q3) via smk.t_0_to_4, and checks its rank via SVD at a
-    regular configuration versus at D=+1 and D=-1.
+    docs/IK_PAPER_TRACEABILITY.md Sec.5 with an actual numerical check.
 
-    Tolerance: singular-value-based rank check with tol=1e-6 -- chosen
-    because the smallest singular value at the two singularities came out
-    ~1e-9 (D=1) and ~9e-7 (D=-1) in development, both several orders of
-    magnitude below the other two singular values (~0.06-0.27) at the same
-    configurations, and below the regular configuration's smallest singular
-    value (~0.069). Finite-difference step h=1e-6 for the same reason
-    used elsewhere in this file: far enough from machine epsilon to avoid
+    IMPORTANT: this class evaluates the Jacobian directly in JOINT space
+    (fixed q1, q2, q3=0 or q3=+-pi), NOT by reconstructing a Cartesian
+    target and running it through ikine(). An earlier version of this test
+    built the D=-1 case via ikine() on a target nudged fractionally inside
+    the domain to dodge ikine()'s exact-boundary ValueError (see
+    TestWorkspaceBoundariesAndSingularities' D=-1 tests for that exact
+    failure) -- that made the measured smallest singular value (~9e-7)
+    only marginally below the tol=1e-6 rank cutoff being used to judge it,
+    i.e. the rank-deficiency conclusion was sensitive to the tolerance
+    choice, which is not a convincing proof of an exact mathematical
+    singularity. Evaluating exactly at q3=0/+-pi in joint space removes
+    ikine() and its boundary rounding from this proof entirely: those are
+    two separate concerns, kept in two separate places (see
+    TestWorkspaceBoundariesAndSingularities for the IK-rounding behavior;
+    this class for the Jacobian singularity itself).
+
+    Measured singular values (recorded here, not just in code comments,
+    per review request -- also asserted on directly below):
+      regular config (q=(10,-25,40)deg):        [0.2560, 0.2298, 0.0340]
+        ratio smallest/largest ~ 0.13
+      q3=0,  (q1,q2)=(10,-25)deg:  [0.2736, 0.2186, 1.5e-11]  ratio ~5.5e-11
+      q3=0,  (q1,q2)=(37, 63)deg:  [0.2760, 0.1086, 8.6e-12]  ratio ~3.1e-11
+      q3=0,  (q1,q2)=(-58,12)deg:  [0.2718, 0.2375, 4.4e-13]  ratio ~1.6e-12
+      q3=pi, (q1,q2)=(10,-25)deg:  [0.1344, 0.0529, 6.6e-13]  ratio ~4.9e-12
+      q3=pi, (q1,q2)=(37, 63)deg:  [0.1411, 0.0252, 8.7e-13]  ratio ~6.2e-12
+      q3=pi, (q1,q2)=(-58,12)deg:  [0.1325, 0.0579, 7.1e-13]  ratio ~5.4e-12
+      q3=-pi,(q1,q2)=(10,-25)deg:  [0.1344, 0.0529, 6.6e-13]  ratio ~4.9e-12 (matches q3=pi, coterminal)
+    The smallest/largest singular-value ratio at every singular
+    configuration tried (~1e-13 to 5e-11) sits roughly ten orders of
+    magnitude below the regular configuration's ratio (~0.13) -- this is
+    not a borderline gap, and the smallest singular values themselves are
+    consistent with pure finite-difference/floating-point noise (the
+    mathematical value is exactly 0), not a "nearly but not quite
+    singular" measurement.
+
+    Rank criterion: rather than a single absolute tol on the smallest
+    singular value (sensitive to problem scale), this asserts the
+    smallest/largest ratio is below RATIO_THRESHOLD_SINGULAR=1e-8 for the
+    singular configurations, and above RATIO_THRESHOLD_REGULAR=1e-2 for
+    the regular one. Both thresholds sit in the wide, empty gap between
+    the two measured clusters (~1e-11 and ~0.13) with orders of magnitude
+    of margin on both sides -- not tuned close to either measurement.
+
+    Finite-difference step h=1e-6, chosen for the same reason as
+    elsewhere in this file: far enough from machine epsilon to avoid
     catastrophic cancellation, far enough below the length scales involved
     (~0.05-0.13m) to approximate the true derivative well.
     """
     l1, l2, l3 = 0.055, 0.1075, 0.130
+    RATIO_THRESHOLD_SINGULAR = 1e-8
+    RATIO_THRESHOLD_REGULAR = 1e-2
 
     def _foot_pos(self, q1, q2, q3):
         t = smk.t_0_to_4(q1, q2, q3, self.l1, self.l2, self.l3)
@@ -200,28 +236,54 @@ class TestJacobianSingularity(unittest.TestCase):
                        self._foot_pos(*(q0 - dq))) / (2 * h)
         return j
 
+    def _singular_value_ratio(self, q1, q2, q3):
+        j = self._numerical_jacobian(q1, q2, q3)
+        sv = np.linalg.svd(j, compute_uv=False)
+        return sv, sv[-1] / sv[0]
+
     def test_regular_configuration_is_full_rank(self):
-        q = smk.ikine(0.05, -0.15, 0.05, self.l1, self.l2, self.l3)
-        j = self._numerical_jacobian(*q)
-        self.assertEqual(np.linalg.matrix_rank(j, tol=1e-6), 3)
+        # Arbitrary nonsingular joint angles -- no IK involved.
+        q1, q2, q3 = radians(10), radians(-25), radians(40)
+        sv, ratio = self._singular_value_ratio(q1, q2, q3)
+        self.assertGreater(
+            ratio, self.RATIO_THRESHOLD_REGULAR,
+            msg=f"singular values {sv}, ratio {ratio}")
 
-    def test_d_equals_plus_one_is_rank_deficient(self):
-        # Fully extended: r^2+z4^2 = (l2+l3)^2 with y4=z4=0
-        x4 = sqrt(self.l1**2 + (self.l2 + self.l3)**2)
-        q = smk.ikine(x4, 0, 0, self.l1, self.l2, self.l3)
-        j = self._numerical_jacobian(*q)
-        self.assertEqual(np.linalg.matrix_rank(j, tol=1e-6), 2)
+    def test_q3_equals_zero_is_rank_deficient_fully_extended(self):
+        # theta3=0 exactly (fully extended leg, D=+1) in joint space.
+        # Three different (q1,q2) pairs, all nonsingular/nonzero, to show
+        # the rank deficiency isn't an artifact of one particular choice.
+        for q1_deg, q2_deg in [(10, -25), (37, 63), (-58, 12)]:
+            with self.subTest(q1_deg=q1_deg, q2_deg=q2_deg):
+                sv, ratio = self._singular_value_ratio(
+                    radians(q1_deg), radians(q2_deg), 0.0)
+                self.assertLess(
+                    ratio, self.RATIO_THRESHOLD_SINGULAR,
+                    msg=f"singular values {sv}, ratio {ratio}")
 
-    def test_d_equals_minus_one_is_rank_deficient(self):
-        # Fully folded: r^2+z4^2 = (l2-l3)^2 with y4=z4=0. Nudged a hair
-        # inside the domain (see TestWorkspaceBoundariesAndSingularities'
-        # d_equals_minus_one test for the exact-boundary ValueError this
-        # sidesteps) so ikine() doesn't raise while computing the target.
-        r_folded = abs(self.l2 - self.l3)
-        x4 = sqrt(self.l1**2 + r_folded**2) * (1 + 1e-9)
-        q = smk.ikine(x4, 0, 0, self.l1, self.l2, self.l3)
-        j = self._numerical_jacobian(*q)
-        self.assertEqual(np.linalg.matrix_rank(j, tol=1e-6), 2)
+    def test_q3_equals_pi_is_rank_deficient_fully_folded(self):
+        # theta3=+pi exactly (fully folded leg, D=-1) in joint space.
+        # This is the exact mathematical singularity; contrast
+        # TestWorkspaceBoundariesAndSingularities'
+        # test_minimum_planar_reach_singularity_d_equals_minus_one_raises_at_exact_boundary,
+        # which shows ikine() cannot even reach this Cartesian target due
+        # to float rounding -- a *different*, IK-specific failure mode
+        # that this joint-space test deliberately does not depend on.
+        for q1_deg, q2_deg in [(10, -25), (37, 63), (-58, 12)]:
+            with self.subTest(q1_deg=q1_deg, q2_deg=q2_deg):
+                sv, ratio = self._singular_value_ratio(
+                    radians(q1_deg), radians(q2_deg), pi)
+                self.assertLess(
+                    ratio, self.RATIO_THRESHOLD_SINGULAR,
+                    msg=f"singular values {sv}, ratio {ratio}")
+
+    def test_q3_equals_negative_pi_matches_positive_pi(self):
+        # -pi and +pi are the same physical (fully folded) configuration;
+        # confirms the singularity isn't an artifact of the sign chosen.
+        sv, ratio = self._singular_value_ratio(radians(10), radians(-25), -pi)
+        self.assertLess(
+            ratio, self.RATIO_THRESHOLD_SINGULAR,
+            msg=f"singular values {sv}, ratio {ratio}")
 
 
 class TestPaperTable3ExamplesUnresolved(unittest.TestCase):
