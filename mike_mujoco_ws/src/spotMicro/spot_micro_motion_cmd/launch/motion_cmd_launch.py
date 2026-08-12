@@ -41,7 +41,7 @@ def generate_launch_description():
         Node(
             package='spot_micro_motion_cmd',
             executable='spot_micro_motion_cmd_node',
-            name='spot_micro_motion_cmd_node',
+            name='spot_micro_motion_cmd',
             output='screen',
             parameters=[config]),
 
