@@ -1,0 +1,38 @@
+Decision,STL filename,Qty for Mike/HV5523MG build,Why / source basis,Notes
+PRINT,files/non-mega_L_side_plate.stl,1,"KDY says use non-mega files when not using Arduino Mega; Mike repo uses Raspberry Pi/PCA9685.",Use this instead of L_side_plate.stl for the Pi/ROS build.
+SKIP,files/L_side_plate.stl,0,"Arduino Mega/default side plate; non-mega variant exists.",Use only if intentionally building the original Arduino Mega version.
+PRINT,files/R_side_plate.stl,1,"Right side plate; no non-mega right-side variant is present in provided files.",Keep unless a true part 2 or updated download provides another right-side variant.
+HUMAN CHECK,files/plate.stl,1,"SpotMicroAI print list calls this the computer slab; KDY says the plate may need redesign for non-Mega boards.","Likely print for base frame, but confirm against assembly images/video and Mike custom Pi/PCA9685 mounts."
+PRINT,files/I_shoulder_cls.stl,2,"Mike says CLS6336HV files fit HV5523MG; KDY says use _cls for CLS6336HV.",Do not print I_shoulder_mg.stl for the Mike servo choice.
+SKIP,files/I_shoulder_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+PRINT,files/O_shoulder.stl,2,"Shared file with no _cls/_mg marking; KDY says unmarked files are used for any servo type.",Quantity follows SpotMicroAI skeleton list.
+PRINT,files/L_arm_joint_cls.stl,2,"Left-orientation _cls leg joint for CLS/HV5523MG-style servos.",Print 2 left-orientation legs.
+PRINT,files/R_arm_joint_cls.stl,2,"Right-orientation _cls leg joint for CLS/HV5523MG-style servos.",Print 2 right-orientation legs.
+SKIP,files/L_arm_joint_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+SKIP,files/R_arm_joint_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+PRINT,files/L_arm_cls.stl,2,"Left-orientation _cls arm part for CLS/HV5523MG-style servos.",Print 2 left-orientation legs.
+PRINT,files/R_arm_cls.stl,2,"Right-orientation _cls arm part for CLS/HV5523MG-style servos.",Print 2 right-orientation legs.
+SKIP,files/L_arm_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+SKIP,files/R_arm_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+PRINT,files/L_arm_cover.stl,2,"Shared left-orientation arm cover.",Print 2 left-orientation covers.
+PRINT,files/R_arm_cover.stl,2,"Shared right-orientation arm cover.",Print 2 right-orientation covers.
+PRINT,files/L_wrist_cls.stl,2,"Left-orientation _cls wrist part for CLS/HV5523MG-style servos.",Print 2 left-orientation wrists.
+PRINT,files/R_wrist_cls.stl,2,"Right-orientation _cls wrist part for CLS/HV5523MG-style servos.",Print 2 right-orientation wrists.
+SKIP,files/L_wrist_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+SKIP,files/R_wrist_mg.stl,0,"MG995/MG996R variant.",Only print if using MG995/MG996R servos.
+PRINT,files/foot.stl,4,"Shared foot/paw file.",Use flexible filament if available; PLA/PETG is acceptable for rigid test build.
+PRINT,files/F_cover.stl,1,"Shared front/head cover.",This is part of the body covering.
+OPTIONAL,files/L_ultra_sonic.stl,1,"KDY original used HC-SR04 ultrasonic sensors; Mike repo does not require them.",Skip for basic Mike/ROS walking dog unless you want the ultrasonic sensor look.
+OPTIONAL,files/R_ultra_sonic.stl,1,"KDY original used HC-SR04 ultrasonic sensors; Mike repo does not require them.",Skip for basic Mike/ROS walking dog unless you want the ultrasonic sensor look.
+PRINT,files/non-mega_T_cover_cls.stl,1,"Non-Mega top cover for CLS/HV5523MG-style build.",Use this instead of T_cover_cls.stl for Raspberry Pi/PCA9685 build.
+SKIP,files/T_cover_cls.stl,0,"Arduino Mega/default top cover for CLS-style servos.",Use only if building around the original Arduino Mega layout.
+SKIP,files/T_cover_mg.stl,0,"Arduino Mega/default top cover for MG995/MG996R servos.",Skip for Mike/HV5523MG build.
+SKIP,files/non-mega_T_cover_mg.stl,0,"Non-Mega top cover for MG995/MG996R servos.",Skip for Mike/HV5523MG build.
+SKIP,files/B_cover_mg.stl,0,"MG rear/bottom cover; Mike/HV5523MG build should use the corrected non-mega _cls equivalent.",Do not print this for the Mike build.
+SKIP,files/B_cover_cls.stl,0,"CLS rear/bottom cover exists, but KDY says use non-mega files when not using Arduino Mega; Mike repo uses Raspberry Pi/PCA9685.",Use only if intentionally using the regular/default board layout.
+PRINT,files/non-mega_B_cover_cls.stl,1,"Best-fit rear/bottom cover for Pi/PCA9685 + CLS/HV5523MG build.",Use this instead of B_cover_cls.stl or B_cover_mg.stl.
+SKIP,files/non-mega_B_cover_mg.stl,0,"Non-Mega rear/bottom cover for MG995/MG996R servos.",Skip for Mike/HV5523MG `_cls` build.
+PRINT,files/R_cover.stl,1,"Shared hindquarters/rear cover file now present in corrected ZIP set.",Body covering part.
+OPTIONAL ADD-ON,Thingiverse 4591999 modified shoulder assembly,1 full robot set,"Mike documents custom shoulder reinforcement.","Adds 8x M3x10 screws, 8x M3 nuts, 4x F625ZZ bearings."
+OPTIONAL ADD-ON,Thingiverse 4596267 Pi/PCA9685 platforms,1 set,"Mike documents custom electronics mounting platforms.",Recommended for clean Pi/PCA9685 physical build.
+OPTIONAL ADD-ON,Thingiverse 4713180 RPLidar A1 mount,1 set,"Mike documents custom RPLidar A1 mount.",Only needed if adding lidar/SLAM.
