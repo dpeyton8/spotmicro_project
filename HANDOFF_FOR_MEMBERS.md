@@ -64,15 +64,9 @@ Main repository:
 
 <https://github.com/dpeyton8/spotmicro_project>
 
-Verified `origin/main` revision when this handoff was updated:
-
-```text
-26e1193def4ad6380ed3007a2688d4f4663bd390
-```
-
-The revision above is a known onboarding baseline, not a permanently pinned
-version. Always pull `main`, record the resulting commit, and work on a new
-branch.
+Do not rely on a hard-coded commit ID in this document because `main` continues
+to advance. Always pull `main`, record the resulting commit with
+`git rev-parse HEAD`, and work on a new branch.
 
 ## Clone and identify the starting revision
 
