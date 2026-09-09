@@ -1,0 +1,84 @@
+{
+  "links_m": {
+    "l1_hip_side_swing": 0.055,
+    "l2_upper_leg": 0.1075,
+    "l3_lower_leg": 0.13
+  },
+  "true_angles_deg": {
+    "q1_deg": 20.0,
+    "q2_deg": 15.0,
+    "q3_deg": -25.0
+  },
+  "q3_branch": "negative",
+  "target_foot_xyz_m": [
+    0.027618392031680858,
+    -0.23669015047765846,
+    0.005248784251820026
+  ],
+  "cases": {
+    "true_original_pose": {
+      "name": "true_original_pose",
+      "angles_deg": {
+        "q1_deg": 20.0,
+        "q2_deg": 14.999999999999998,
+        "q3_deg": -25.0
+      },
+      "analytic_foot_xyz_m": [
+        0.027618392031680858,
+        -0.23669015047765846,
+        0.005248784251820026
+      ],
+      "analytic_error_m": 0.0,
+      "mujoco_front_right_toe_xyz_m": [
+        0.10172174780515865,
+        -0.01811808974498845,
+        0.03181818109030808
+      ],
+      "mujoco_error_vs_true_m": 0.0,
+      "q1_within_mujoco_joint_range": true
+    },
+    "repo_q1_formula": {
+      "name": "repo_q1_formula",
+      "angles_deg": {
+        "q1_deg": 19.99999999999999,
+        "q2_deg": 14.99999999999999,
+        "q3_deg": -24.999999999999986
+      },
+      "analytic_foot_xyz_m": [
+        0.027618392031680823,
+        -0.23669015047765846,
+        0.0052487842518200226
+      ],
+      "analytic_error_m": 3.4867510341210807e-17,
+      "mujoco_front_right_toe_xyz_m": [
+        0.10172174780515862,
+        -0.018118089744988485,
+        0.03181818109030807
+      ],
+      "mujoco_error_vs_true_m": 4.654751537338637e-17,
+      "q1_within_mujoco_joint_range": true
+    },
+    "paper_eq15_q1_formula": {
+      "name": "paper_eq15_q1_formula",
+      "angles_deg": {
+        "q1_deg": -186.68898087946758,
+        "q2_deg": 14.99999999999999,
+        "q3_deg": -24.999999999999986
+      },
+      "analytic_foot_xyz_m": [
+        0.08163284558907756,
+        0.22387738035045443,
+        0.0052487842518200226
+      ],
+      "analytic_error_m": 0.4637240684353238,
+      "mujoco_front_right_toe_xyz_m": [
+        0.10172174780515862,
+        0.04033864279656233,
+        0.4543152956531631
+      ],
+      "mujoco_error_vs_true_m": 0.42652198230967253,
+      "q1_within_mujoco_joint_range": false
+    }
+  },
+  "mujoco_note": "loaded /home/davipeyton8/Documents/spotmicro_project/mike_mujoco_ws/src/spotMicro/spot_micro_mujoco_sim/models/spot_micro_sim.xml"
+}

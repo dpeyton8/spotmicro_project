@@ -1,0 +1,30 @@
+{
+  "links_m": {
+    "l1": 0.055,
+    "l2": 0.1075,
+    "l3": 0.13
+  },
+  "q1_sweep_deg": [
+    -30.0,
+    30.0
+  ],
+  "q2_deg": 15.0,
+  "q3_deg": -25.0,
+  "samples": 121,
+  "mujoco_note": "loaded /home/davipeyton8/Documents/spotmicro_project/mike_mujoco_ws/src/spotMicro/spot_micro_mujoco_sim/models/spot_micro_sim.xml",
+  "mujoco_front_right_shoulder_range_deg": [
+    -31.398087173169117,
+    31.398087173169117
+  ],
+  "repo_max_analytic_foot_error_m": 6.245004513516506e-17,
+  "paper_min_analytic_foot_error_m": 0.46372406843532366,
+  "paper_max_analytic_foot_error_m": 0.46372406843532393,
+  "paper_mean_analytic_foot_error_m": 0.46372406843532427,
+  "repo_q1_inside_mujoco_range_count": 121,
+  "paper_q1_inside_mujoco_range_count": 0,
+  "sample_count": 121,
+  "repo_max_mujoco_toe_error_m": 1.3092278833360675e-16,
+  "paper_min_mujoco_toe_error_m": 0.4265219823096725,
+  "paper_max_mujoco_toe_error_m": 0.42652198230967275,
+  "paper_mean_mujoco_toe_error_m": 0.4265219823096728
+}
