@@ -1,0 +1,75 @@
+<mujoco model="spotmicro_one_right_leg_test_rig">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast">
+    <flag warmstart="enable"/>
+  </option>
+
+  <default>
+    <joint damping="0.12" armature="0.002"/>
+    <geom friction="1.0 0.02 0.002" condim="4"/>
+  </default>
+
+  <visual>
+    <headlight diffuse="0.7 0.7 0.7" ambient="0.3 0.3 0.3"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker"
+             rgb1="0.88 0.88 0.88" rgb2="0.68 0.68 0.68"
+             width="512" height="512"/>
+    <material name="floor_mat" texture="grid" texrepeat="8 8" reflectance="0.08"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 -1 2" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="2 2 0.1" material="floor_mat"/>
+
+    <!--
+      A mocap carriage represents a rigid physical test fixture. The script
+      moves it slowly to disturb the leg without pretending one foot can
+      balance an unconstrained body.
+    -->
+    <body name="test_carriage" mocap="true" pos="0 0 0.250">
+      <geom name="carriage" type="box" size="0.055 0.045 0.025"
+            rgba="0.15 0.15 0.18 1" contype="0" conaffinity="0"/>
+
+      <!-- Use Cometyang/Mike front-right names so joint-state data can be
+           consumed by the existing SpotMicro URDF/RViz pipeline. -->
+      <body name="front_right_shoulder_link" pos="0 0 0">
+        <joint name="front_right_shoulder" axis="1 0 0" range="-0.55 0.55"/>
+        <geom type="capsule" fromto="0 0 0 0 -0.055 0" size="0.016"
+              mass="0.12" rgba="0.90 0.72 0.05 1"/>
+
+        <body name="front_right_leg_link" pos="0 -0.055 0">
+          <joint name="front_right_leg" axis="0 1 0" range="-1.50 1.00"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.1075" size="0.014"
+                mass="0.18" rgba="0.10 0.65 0.75 1"/>
+
+          <body name="front_right_foot_link" pos="0 0 -0.1075">
+            <joint name="front_right_foot" axis="0 1 0" range="-2.40 -0.05"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.130" size="0.012"
+                  mass="0.16" rgba="0.12 0.30 0.85 1"/>
+            <geom name="right_toe" type="sphere" pos="0 0 -0.130" size="0.018"
+                  mass="0.035" rgba="0.18 0.18 0.18 1"/>
+            <site name="right_toe_site" pos="0 0 -0.130" size="0.006"
+                  rgba="1 0.15 0.15 1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- Position servos approximate the closed-loop behavior of hobby servos. -->
+  <actuator>
+    <position name="front_right_shoulder_actuator" joint="front_right_shoulder"
+              kp="45" kv="3.5" ctrlrange="-0.55 0.55" forcerange="-3.0 3.0"/>
+    <position name="front_right_leg_actuator" joint="front_right_leg"
+              kp="55" kv="4.0" ctrlrange="-1.50 1.00" forcerange="-4.0 4.0"/>
+    <position name="front_right_foot_actuator" joint="front_right_foot"
+              kp="45" kv="3.5" ctrlrange="-2.40 -0.05" forcerange="-3.5 3.5"/>
+  </actuator>
+
+  <keyframe>
+    <key name="stance" qpos="0 0.25 -0.50" ctrl="0 0.25 -0.50"/>
+  </keyframe>
+</mujoco>

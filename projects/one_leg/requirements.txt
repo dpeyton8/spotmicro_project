@@ -1,0 +1,5 @@
+# Match the repository's Ubuntu 22.04 environment while allowing the current
+# Ubuntu 26.04 / Python 3.14 WSL environment to use a compatible NumPy wheel.
+mujoco==3.10.0
+numpy==1.26.4; python_version < "3.13"
+numpy>=2.3,<3; python_version >= "3.13"
