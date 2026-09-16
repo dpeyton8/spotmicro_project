@@ -69,6 +69,11 @@
     .flow { text-align: center; color: #c9d8ec; font-family: ui-monospace, monospace; }
     .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
     .comparison > div { padding: 10px; border-radius: 8px; background: var(--panel2); }
+    .control-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .control-step { padding: 10px; border-radius: 8px; background: var(--panel2); }
+    .control-step b { color: var(--cyan); }
+    .control-step code { display: block; margin-top: 5px; font-size: 12px; overflow-wrap: anywhere; }
+    .formula { margin: 10px 0; padding: 9px; border-left: 3px solid var(--cyan); background: #08101d; font-family: ui-monospace, monospace; }
     .ok { color: var(--green); }
     .bad { color: #ff9aa3; }
     details { margin-top: 10px; }
@@ -86,11 +91,11 @@
   <main>
     <section class="stack">
       <div class="panel">
-        <h2>1 · Manual joint angles</h2>
-        <div class="row"><label for="q1">q1 shoulder</label><input id="q1" type="range" min="-30" max="30" step="0.1" value="18"><output id="q1o">18.0°</output></div>
-        <div class="row"><label for="q2">q2 upper</label><input id="q2" type="range" min="-100" max="70" step="0.1" value="-30"><output id="q2o">-30.0°</output></div>
-        <div class="row"><label for="q3">q3 knee</label><input id="q3" type="range" min="5" max="145" step="0.1" value="83"><output id="q3o">83.0°</output></div>
-        <p class="muted">Moving a slider runs forward kinematics: angles → toe position.</p>
+        <h2>1 · Cometyang / RViz right-leg joints</h2>
+        <div class="row"><label for="q1">shoulder</label><input id="q1" type="range" min="-31.4" max="31.4" step="0.1" value="18"><output id="q1o">18.0°</output></div>
+        <div class="row"><label for="q2">upper leg</label><input id="q2" type="range" min="-152.7" max="88.7" step="0.1" value="30"><output id="q2o">30.0°</output></div>
+        <div class="row"><label for="q3">knee/foot</label><input id="q3" type="range" min="-149.0" max="5.7" step="0.1" value="-83"><output id="q3o">-83.0°</output></div>
+        <p class="muted"><code>front_right_shoulder</code>, <code>front_right_leg</code>, and <code>front_right_foot</code>. These are the angles RViz receives. For the right leg, repository IK angles map as <code>[q1, -q2, -q3]</code>.</p>
       </div>
 
       <div class="panel">
@@ -128,6 +133,18 @@
           <summary>What waits for MuJoCo</summary>
           <p>Gravity, inertia, servo torque, friction, floor contact force, compliance, slipping, and saturation under load.</p>
         </details>
+      </div>
+
+      <div class="panel">
+        <h2>How one controller step works</h2>
+        <div class="control-steps">
+          <div class="control-step"><b>1 · Measure</b><code>toe = data.geom_xpos[toe_geom_id]</code></div>
+          <div class="control-step"><b>2 · Compare</b><code>error = target - toe</code></div>
+          <div class="control-step"><b>3 · Correct</b><code>delta_q = gain * J.T @ solve(J @ J.T + damping²I, error)</code></div>
+          <div class="control-step"><b>4 · Command</b><code>data.ctrl[actuator_id_array] = command</code></div>
+        </div>
+        <div class="formula">Δq = gain · Jᵀ(JJᵀ + λ²I)⁻¹ · toe error</div>
+        <p>The Jacobian describes how the toe moves when each joint moves. Damping protects the calculation near singular poses; step limiting and actuator clamping prevent sudden or invalid commands. The MuJoCo implementation repeats this loop at 100 Hz.</p>
       </div>
     </section>
 
@@ -187,6 +204,14 @@
   <script>
     "use strict";
     const L1 = 0.055, L2 = 0.1075, L3 = 0.130;
+    // Cometyang bridge convention for the front-right leg:
+    // RViz/MuJoCo = [kinematic q1, -kinematic q2, -kinematic q3].
+    const RVIZ_SIGNS = [1,-1,-1];
+    const RVIZ_LIMITS = [[-0.548,0.548],[-2.666,1.548],[-2.6,0.1]];
+    const KINEMATIC_LIMITS = RVIZ_LIMITS.map((range,i) => {
+      const mapped=range.map(v=>v*RVIZ_SIGNS[i]);
+      return [Math.min(...mapped),Math.max(...mapped)];
+    });
     // The paper/repository leg frame uses negative y as down.
     const GROUND_Y = -0.180, LOWERING_TIME_S = 2.5;
     const deg = r => r * 180 / Math.PI;
@@ -226,8 +251,14 @@
       if (radial < 0) return NaN;
       return -Math.atan2(-y,x)-Math.atan2(Math.sqrt(radial),-L1);
     }
-    function qNow() { return [rad(+el("q1").value),rad(+el("q2").value),rad(+el("q3").value)]; }
-    function setQ(q) { ["q1","q2","q3"].forEach((id,i)=>el(id).value=deg(q[i])); updateOutputs(); }
+    function rvizToKinematic(q) { return q.map((v,i)=>v*RVIZ_SIGNS[i]); }
+    function kinematicToRviz(q) { return q.map((v,i)=>v*RVIZ_SIGNS[i]); }
+    function qNow() { return rvizToKinematic([rad(+el("q1").value),rad(+el("q2").value),rad(+el("q3").value)]); }
+    function setQ(q) {
+      const rviz=kinematicToRviz(q);
+      ["q1","q2","q3"].forEach((id,i)=>el(id).value=deg(rviz[i]));
+      updateOutputs();
+    }
     function targetNow() { return [+el("tx").value,+el("ty").value,+el("tz").value]; }
     function norm(v) { return Math.hypot(...v); }
     function sub(a,b) { return a.map((v,i)=>v-b[i]); }
@@ -253,8 +284,7 @@
       const A=[0,1,2].map(i=>[0,1,2].map(j=>J[i].reduce((s,v,k)=>s+v*J[j][k],0)+(i===j?lambda*lambda:0)));
       const y=solve3(A,e), gain=+el("gain").value;
       const dq=[0,1,2].map(j=>gain*J.reduce((s,row,i)=>s+row[j]*y[i],0));
-      const limits=[[-30,30],[-100,70],[5,145]].map(p=>p.map(rad));
-      return q.map((v,i)=>Math.max(limits[i][0],Math.min(limits[i][1],v+Math.max(-rad(1),Math.min(rad(1),dq[i])))));
+      return q.map((v,i)=>Math.max(KINEMATIC_LIMITS[i][0],Math.min(KINEMATIC_LIMITS[i][1],v+Math.max(-rad(1),Math.min(rad(1),dq[i])))));
     }
 
     const VIEW_SCALE=1100, VIEW_ORIGIN=[385,145];
@@ -265,7 +295,8 @@
     function fixedLengthVector(p) {
       // Collapse fore/aft and lateral motion into one horizontal direction,
       // while preserving both the full 3D magnitude and vertical displacement.
-      const signedHorizontal=(p[0]+0.42*p[2] >= 0 ? 1 : -1)*Math.hypot(p[0],p[2]);
+      const directionAxis=Math.abs(p[2])>1e-9?p[2]:p[0];
+      const signedHorizontal=(directionAxis >= 0 ? 1 : -1)*Math.hypot(p[0],p[2]);
       return [VIEW_SCALE*signedHorizontal,-VIEW_SCALE*p[1]];
     }
     function project(p) {
@@ -323,9 +354,10 @@
       if(!q) { el("reach").innerHTML='<span class="bad">Unreachable target</span>'; return; }
       setQ(q); const error=norm(sub(fk(q).at(-1),target));
       el("reach").innerHTML='<span class="ok">Reachable using the right-leg positive-knee branch</span>';
-      el("correctResult").textContent=`q = ${q.map(v=>deg(v).toFixed(2)+"°").join(", ")}; toe error ${(error*1000).toFixed(4)} mm`;
+      const rvizQ=kinematicToRviz(q);
+      el("correctResult").textContent=`RViz joints = ${rvizQ.map(v=>deg(v).toFixed(2)+"°").join(", ")}; toe error ${(error*1000).toFixed(4)} mm`;
       const qp=[paperQ1(target),q[1],q[2]], pe=norm(sub(fk(qp).at(-1),target));
-      el("paperResult").textContent=`q1 = ${deg(qp[0]).toFixed(2)}°; reconstructed toe error ${(pe*1000).toFixed(2)} mm`;
+      el("paperResult").textContent=`RViz shoulder q1 = ${deg(qp[0]).toFixed(2)}°; reconstructed toe error ${(pe*1000).toFixed(2)} mm`;
     }
     function applyPaper() { const target=targetNow(), q=correctedIK(target); if(!q)return; q[0]=paperQ1(target); setQ(q); }
     function start() {
