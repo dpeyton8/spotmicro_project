@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpotMicro One Right Leg Controls Testbench</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #09111f;
+      --panel: #111c2d;
+      --panel2: #16243a;
+      --text: #edf4ff;
+      --muted: #9db0ca;
+      --gold: #f4c542;
+      --cyan: #43d7e8;
+      --blue: #5594ff;
+      --red: #ff5c68;
+      --green: #5be39b;
+      --line: #2b405e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 15% 0%, #142846, var(--bg) 42%);
+    }
+    header { padding: 22px 28px 12px; }
+    h1 { margin: 0 0 5px; font-size: clamp(22px, 3vw, 34px); }
+    h2 { margin: 0 0 12px; font-size: 17px; }
+    p { margin: 6px 0; }
+    code { color: #b9e8ff; }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block; margin-top: 8px; padding: 4px 9px;
+      color: #ffd5a4; background: #5b351c; border: 1px solid #a66a30;
+      border-radius: 999px; font-size: 12px;
+    }
+    main {
+      display: grid; grid-template-columns: minmax(310px, 390px) minmax(480px, 1fr);
+      gap: 16px; padding: 12px 28px 30px;
+    }
+    .stack { display: grid; gap: 14px; align-content: start; }
+    .panel {
+      padding: 16px; background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: 0 12px 30px #0005;
+    }
+    .row { display: grid; grid-template-columns: 78px 1fr 64px; gap: 8px; align-items: center; margin: 9px 0; }
+    input[type="range"] { width: 100%; accent-color: var(--cyan); }
+    output { text-align: right; font-variant-numeric: tabular-nums; color: #d8e9ff; }
+    button, select {
+      border: 1px solid #46688e; border-radius: 7px; background: #19304d;
+      color: var(--text); padding: 8px 10px; cursor: pointer;
+    }
+    button:hover { background: #244566; }
+    button.primary { background: #16684e; border-color: #2cad80; }
+    button.danger { background: #6d2931; border-color: #b74a58; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .metric { background: var(--panel2); padding: 9px; border-radius: 7px; }
+    .metric span { display: block; font-size: 11px; color: var(--muted); }
+    .metric strong { font-variant-numeric: tabular-nums; }
+    svg { width: 100%; min-height: 470px; background: #08101d; border-radius: 8px; }
+    canvas { width: 100%; height: 150px; background: #08101d; border-radius: 8px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+    .flow { text-align: center; color: #c9d8ec; font-family: ui-monospace, monospace; }
+    .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .comparison > div { padding: 10px; border-radius: 8px; background: var(--panel2); }
+    .ok { color: var(--green); }
+    .bad { color: #ff9aa3; }
+    details { margin-top: 10px; }
+    summary { cursor: pointer; color: #cfe5ff; }
+    @media (max-width: 950px) { main { grid-template-columns: 1fr; padding: 10px; } header { padding: 18px 12px 6px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SpotMicro one-right-leg controls testbench</h1>
+    <p class="muted">Interactive forward kinematics, corrected inverse kinematics, paper-formula comparison, and toe-hold control.</p>
+    <span class="badge">Windows kinematic preview — no gravity, torque, collision, or real floor force</span>
+  </header>
+
+  <main>
+    <section class="stack">
+      <div class="panel">
+        <h2>1 · Manual joint angles</h2>
+        <div class="row"><label for="q1">q1 shoulder</label><input id="q1" type="range" min="-30" max="30" step="0.1" value="18"><output id="q1o">18.0°</output></div>
+        <div class="row"><label for="q2">q2 upper</label><input id="q2" type="range" min="-100" max="70" step="0.1" value="-30"><output id="q2o">-30.0°</output></div>
+        <div class="row"><label for="q3">q3 knee</label><input id="q3" type="range" min="5" max="145" step="0.1" value="83"><output id="q3o">83.0°</output></div>
+        <p class="muted">Moving a slider runs forward kinematics: angles → toe position.</p>
+      </div>
+
+      <div class="panel">
+        <h2>2 · Initial toe position</h2>
+        <div class="row"><label for="tx">x fore/aft</label><input id="tx" type="range" min="-0.12" max="0.12" step="0.001" value="0"><output id="txo">0 mm</output></div>
+        <div class="row"><label for="ty">y vertical</label><input id="ty" type="range" min="-0.20" max="-0.06" step="0.001" value="-0.12"><output id="tyo">-120 mm</output></div>
+        <div class="row"><label for="tz">z lateral</label><input id="tz" type="range" min="-0.10" max="0.10" step="0.001" value="0.05"><output id="tzo">50 mm</output></div>
+        <div class="buttons">
+          <button class="primary" id="corrected">Solve corrected IK</button>
+          <button id="paper">Apply paper Eq.15 q1</button>
+        </div>
+        <p id="reach" class="muted">Target status</p>
+      </div>
+
+      <div class="panel">
+        <h2>3 · Toe-hold experiment</h2>
+        <p>First lowers the toe from its selected starting target to the ground, then moves the mount while holding that ground point.</p>
+        <div class="row"><label for="gain">gain</label><input id="gain" type="range" min="0.02" max="0.80" step="0.01" value="0.28"><output id="gaino">0.28</output></div>
+        <div class="row"><label for="damping">damping</label><input id="damping" type="range" min="0.001" max="0.080" step="0.001" value="0.020"><output id="dampingo">0.020</output></div>
+        <div class="buttons">
+          <button class="primary" id="start">Lower toe, then hold ground</button>
+          <button class="danger" id="stop">Stop</button>
+          <button id="reset">Reset</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Presentation connection</h2>
+        <div class="flow">toe target → IK/Jacobian → q1,q2,q3 → simulated leg → measured toe</div>
+        <details open>
+          <summary>What this demonstrates</summary>
+          <p>Reference, feedback error, controller gain, damping, joint limits, reachability, and tracking error.</p>
+        </details>
+        <details>
+          <summary>What waits for MuJoCo</summary>
+          <p>Gravity, inertia, servo torque, friction, floor contact force, compliance, slipping, and saturation under load.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="stack">
+      <div class="panel">
+        <h2>3D leg view</h2>
+        <svg id="view" viewBox="0 0 760 500" role="img" aria-label="Projected three dimensional SpotMicro right leg">
+          <defs>
+            <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#18304b" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="760" height="500" fill="url(#grid)"/>
+          <line id="groundLine" x1="70" y1="410" x2="700" y2="410" stroke="#7890aa" stroke-width="2"/>
+          <text id="groundLabel" x="650" y="401" fill="#9db0ca">ground y = −180 mm</text>
+          <g id="targetMark"><circle r="8" fill="none" stroke="#5be39b" stroke-width="3"/><path d="M-13 0H13M0-13V13" stroke="#5be39b"/></g>
+          <g id="groundGoalMark"><circle r="10" fill="none" stroke="#f4c542" stroke-width="2" stroke-dasharray="4 3"/><path d="M-15 0H15M0-15V15" stroke="#f4c542" stroke-width="2"/><text x="14" y="-12" fill="#f4c542">ground goal</text></g>
+          <g id="mount"><rect x="-38" y="-18" width="76" height="36" rx="5" fill="#323d4d" stroke="#8b9db5"/></g>
+          <line id="link1" stroke="#f4c542" stroke-width="15" stroke-linecap="round"/>
+          <line id="link2" stroke="#43d7e8" stroke-width="14" stroke-linecap="round"/>
+          <line id="link3" stroke="#5594ff" stroke-width="12" stroke-linecap="round"/>
+          <g id="joints"></g>
+          <circle id="toe" r="11" fill="#dce7f6" stroke="#ff5c68" stroke-width="3"/>
+          <text id="toeLabel" fill="#edf4ff"></text>
+        </svg>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--gold)"></i>L1 hip</span>
+          <span><i class="dot" style="background:var(--cyan)"></i>L2 upper leg</span>
+          <span><i class="dot" style="background:var(--blue)"></i>L3 lower leg</span>
+          <span><i class="dot" style="background:var(--green)"></i>target</span>
+          <span><i class="dot" style="background:var(--red)"></i>actual toe</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Live measurements</h2>
+        <div class="metrics">
+          <div class="metric"><span>Toe x/y/z</span><strong id="toeMetric">—</strong></div>
+          <div class="metric"><span>Tracking error</span><strong id="errorMetric">—</strong></div>
+          <div class="metric"><span>Controller phase</span><strong id="stateMetric">ready above ground</strong></div>
+        </div>
+        <canvas id="chart" width="900" height="180"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2>Corrected repository IK versus paper Eq.15</h2>
+        <div class="comparison">
+          <div><strong class="ok">Corrected q1</strong><p id="correctResult">Choose a target and solve.</p></div>
+          <div><strong class="bad">Paper q1</strong><p id="paperResult">The sign difference can put the toe away from the target.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+    const L1 = 0.055, L2 = 0.1075, L3 = 0.130;
+    // The paper/repository leg frame uses negative y as down.
+    const GROUND_Y = -0.180, LOWERING_TIME_S = 2.5;
+    const deg = r => r * 180 / Math.PI;
+    const rad = d => d * Math.PI / 180;
+    const el = id => document.getElementById(id);
+    const controls = ["q1", "q2", "q3", "tx", "ty", "tz", "gain", "damping"];
+    let mount = [0, 0, 0], running = false, animationStart = 0, lastFrame = 0;
+    let anchor = null, startTarget = null, activeTarget = null, history = [];
+
+    const eye4 = () => [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+    function mul(a,b) {
+      return a.map((row,i) => b[0].map((_,j) => row.reduce((s,_,k) => s + a[i][k]*b[k][j],0)));
+    }
+    function point(t) { return [t[0][3], t[1][3], t[2][3]]; }
+    function t01(q) {
+      const c=Math.cos(q), s=Math.sin(q);
+      return [[c,-s,0,-L1*c],[s,c,0,-L1*s],[0,0,1,0],[0,0,0,1]];
+    }
+    const t12 = () => [[0,0,-1,0],[-1,0,0,0],[0,1,0,0],[0,0,0,1]];
+    function tz(q,l) { const c=Math.cos(q),s=Math.sin(q); return [[c,-s,0,l*c],[s,c,0,l*s],[0,0,1,0],[0,0,0,1]]; }
+    function fk(q, offset=mount) {
+      const a=t01(q[0]), b=mul(a,t12()), c=mul(b,tz(q[1],L2)), d=mul(c,tz(q[2],L3));
+      return [[0,0,0],point(a),point(c),point(d)].map(p => p.map((v,i)=>v+offset[i]));
+    }
+    function correctedIK(target) {
+      const [x,y,z]=target; const radial=x*x+y*y-L1*L1;
+      const D=(x*x+y*y+z*z-L1*L1-L2*L2-L3*L3)/(2*L2*L3);
+      if (radial < 0 || Math.abs(D) > 1) return null;
+      const root=Math.sqrt(Math.max(0,radial));
+      const q3=Math.atan2(Math.sqrt(Math.max(0,1-D*D)),D);
+      const q2=Math.atan2(z,root)-Math.atan2(L3*Math.sin(q3),L2+L3*Math.cos(q3));
+      const q1=Math.atan2(y,x)+Math.atan2(root,-L1);
+      return [q1,q2,q3];
+    }
+    function paperQ1(target) {
+      const [x,y]=target, radial=x*x+y*y-L1*L1;
+      if (radial < 0) return NaN;
+      return -Math.atan2(-y,x)-Math.atan2(Math.sqrt(radial),-L1);
+    }
+    function qNow() { return [rad(+el("q1").value),rad(+el("q2").value),rad(+el("q3").value)]; }
+    function setQ(q) { ["q1","q2","q3"].forEach((id,i)=>el(id).value=deg(q[i])); updateOutputs(); }
+    function targetNow() { return [+el("tx").value,+el("ty").value,+el("tz").value]; }
+    function norm(v) { return Math.hypot(...v); }
+    function sub(a,b) { return a.map((v,i)=>v-b[i]); }
+
+    function jacobian(q) {
+      const h=1e-5, base=fk(q).at(-1), J=[[],[],[]];
+      for(let j=0;j<3;j++) { const qp=[...q]; qp[j]+=h; const p=fk(qp).at(-1); for(let i=0;i<3;i++) J[i][j]=(p[i]-base[i])/h; }
+      return J;
+    }
+    function solve3(A,b) {
+      A=A.map((r,i)=>[...r,b[i]]);
+      for(let i=0;i<3;i++) {
+        let pivot=i; for(let r=i+1;r<3;r++) if(Math.abs(A[r][i])>Math.abs(A[pivot][i])) pivot=r;
+        [A[i],A[pivot]]=[A[pivot],A[i]];
+        if(Math.abs(A[i][i])<1e-10) return [0,0,0];
+        for(let r=i+1;r<3;r++) { const f=A[r][i]/A[i][i]; for(let c=i;c<4;c++) A[r][c]-=f*A[i][c]; }
+      }
+      const x=[0,0,0]; for(let i=2;i>=0;i--) { x[i]=(A[i][3]-A[i].slice(i+1,3).reduce((s,v,k)=>s+v*x[i+1+k],0))/A[i][i]; }
+      return x;
+    }
+    function dlsStep(q,target) {
+      const J=jacobian(q), e=sub(target,fk(q).at(-1)), lambda=+el("damping").value;
+      const A=[0,1,2].map(i=>[0,1,2].map(j=>J[i].reduce((s,v,k)=>s+v*J[j][k],0)+(i===j?lambda*lambda:0)));
+      const y=solve3(A,e), gain=+el("gain").value;
+      const dq=[0,1,2].map(j=>gain*J.reduce((s,row,i)=>s+row[j]*y[i],0));
+      const limits=[[-30,30],[-100,70],[5,145]].map(p=>p.map(rad));
+      return q.map((v,i)=>Math.max(limits[i][0],Math.min(limits[i][1],v+Math.max(-rad(1),Math.min(rad(1),dq[i])))));
+    }
+
+    function project(p) {
+      const scale=1100, ox=385, oy=145;
+      // x is fore/aft, y is vertical (negative down), z is lateral/depth.
+      return [ox+scale*(p[0]+0.42*p[2]), oy+scale*(-p[1]+0.18*p[2])];
+    }
+    function setLine(id,a,b) { const A=project(a),B=project(b),n=el(id); n.setAttribute("x1",A[0]);n.setAttribute("y1",A[1]);n.setAttribute("x2",B[0]);n.setAttribute("y2",B[1]); }
+    function render() {
+      const q=qNow(), pts=fk(q), toe=pts.at(-1), target=activeTarget||anchor||targetNow();
+      setLine("link1",pts[0],pts[1]); setLine("link2",pts[1],pts[2]); setLine("link3",pts[2],pts[3]);
+      const M=project(mount); el("mount").setAttribute("transform",`translate(${M[0]} ${M[1]})`);
+      const T=project(target); el("targetMark").setAttribute("transform",`translate(${T[0]} ${T[1]})`);
+      const selected=targetNow(), groundGoal=anchor||[selected[0],GROUND_Y,selected[2]];
+      const G=project(groundGoal); el("groundGoalMark").setAttribute("transform",`translate(${G[0]} ${G[1]})`);
+      const groundScreenY=project([0,GROUND_Y,0])[1];
+      const groundLine=el("groundLine"); groundLine.setAttribute("y1",groundScreenY); groundLine.setAttribute("y2",groundScreenY);
+      const groundLabel=el("groundLabel"); groundLabel.setAttribute("y",groundScreenY-9);
+      const P=project(toe); el("toe").setAttribute("cx",P[0]);el("toe").setAttribute("cy",P[1]);
+      el("toeLabel").setAttribute("x",P[0]+15);el("toeLabel").setAttribute("y",P[1]-12);el("toeLabel").textContent="toe";
+      el("joints").innerHTML=pts.slice(0,3).map(p=>{const a=project(p);return `<circle cx="${a[0]}" cy="${a[1]}" r="7" fill="#08101d" stroke="#eaf2ff" stroke-width="2"/>`}).join("");
+      const err=norm(sub(target,toe));
+      el("toeMetric").textContent=toe.map(v=>`${(v*1000).toFixed(1)}`).join(" / ")+" mm";
+      el("errorMetric").textContent=`${(err*1000).toFixed(2)} mm`;
+      drawChart();
+    }
+    function updateOutputs() {
+      ["q1","q2","q3"].forEach(id=>el(id+"o").textContent=(+el(id).value).toFixed(1)+"°");
+      ["tx","ty","tz"].forEach(id=>el(id+"o").textContent=Math.round(+el(id).value*1000)+" mm");
+      el("gaino").textContent=(+el("gain").value).toFixed(2); el("dampingo").textContent=(+el("damping").value).toFixed(3);
+      render();
+    }
+    function solveCorrected() {
+      running=false; mount=[0,0,0]; anchor=null; const target=targetNow(), q=correctedIK(target);
+      if(!q) { el("reach").innerHTML='<span class="bad">Unreachable target</span>'; return; }
+      setQ(q); const error=norm(sub(fk(q).at(-1),target));
+      el("reach").innerHTML='<span class="ok">Reachable using the right-leg positive-knee branch</span>';
+      el("correctResult").textContent=`q = ${q.map(v=>deg(v).toFixed(2)+"°").join(", ")}; toe error ${(error*1000).toFixed(4)} mm`;
+      const qp=[paperQ1(target),q[1],q[2]], pe=norm(sub(fk(qp).at(-1),target));
+      el("paperResult").textContent=`q1 = ${deg(qp[0]).toFixed(2)}°; reconstructed toe error ${(pe*1000).toFixed(2)} mm`;
+    }
+    function applyPaper() { const target=targetNow(), q=correctedIK(target); if(!q)return; q[0]=paperQ1(target); setQ(q); }
+    function start() {
+      solveCorrected();
+      startTarget=fk(qNow()).at(-1);
+      anchor=[startTarget[0],GROUND_Y,startTarget[2]];
+      if(!correctedIK(anchor)) {
+        running=false; anchor=null; activeTarget=null;
+        el("reach").innerHTML='<span class="bad">Cannot lower vertically to ground from this x/z: the ground point is outside the leg workspace. Choose x closer to 0 or reduce lateral z.</span>';
+        el("stateMetric").textContent="ground unreachable";
+        render(); return;
+      }
+      activeTarget=[...startTarget]; running=true; animationStart=performance.now();lastFrame=animationStart;history=[];
+      el("stateMetric").textContent="lowering to ground";requestAnimationFrame(tick);
+    }
+    function stop() { running=false;el("stateMetric").textContent="stopped"; }
+    function reset() {
+      running=false;mount=[0,0,0];anchor=null;activeTarget=null;startTarget=null;history=[];
+      el("tx").value=0;el("ty").value=-0.12;el("tz").value=0.05;
+      el("stateMetric").textContent="manual";updateOutputs();solveCorrected();
+    }
+    function tick(now) {
+      if(!running)return; const t=(now-animationStart)/1000; lastFrame=now;
+      const blend=Math.min(1,t/LOWERING_TIME_S);
+      activeTarget=startTarget.map((v,i)=>v+(anchor[i]-v)*blend);
+      if(blend < 1) {
+        mount=[0,0,0]; el("stateMetric").textContent=`lowering ${Math.round(blend*100)}%`;
+      } else {
+        const holdTime=t-LOWERING_TIME_S;
+        activeTarget=[...anchor];
+        mount=[0.010*Math.sin(2*Math.PI*0.20*holdTime),0,0.012*Math.sin(2*Math.PI*0.30*holdTime)];
+        el("stateMetric").textContent="ground hold + disturbance";
+      }
+      setQ(dlsStep(qNow(),activeTarget)); const err=norm(sub(activeTarget,fk(qNow()).at(-1)));history.push(err*1000);if(history.length>300)history.shift();render();requestAnimationFrame(tick);
+    }
+    function drawChart() {
+      const c=el("chart"),ctx=c.getContext("2d"),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.strokeStyle="#29445f";ctx.lineWidth=1;
+      for(let y=30;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+      ctx.fillStyle="#9db0ca";ctx.font="14px system-ui";ctx.fillText("toe error history (0–20 mm)",12,20);
+      if(history.length<2)return;ctx.strokeStyle="#ff5c68";ctx.lineWidth=3;ctx.beginPath();history.forEach((v,i)=>{const x=i/(history.length-1)*w,y=h-Math.min(20,v)/20*(h-28);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();
+    }
+    controls.forEach(id=>el(id).addEventListener("input",()=>{if(id.startsWith("q")){running=false;anchor=null;el("stateMetric").textContent="manual";}updateOutputs();}));
+    el("corrected").onclick=solveCorrected;el("paper").onclick=applyPaper;el("start").onclick=start;el("stop").onclick=stop;el("reset").onclick=reset;
+    solveCorrected();
+    // Useful for automated browser smoke tests and presentation links.
+    if (new URLSearchParams(window.location.search).has("autorun")) {
+      window.setTimeout(start, 250);
+    }
+  </script>
+</body>
+</html>

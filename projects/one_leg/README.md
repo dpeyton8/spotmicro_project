@@ -66,6 +66,8 @@ projects/one_leg/
 |-- README.md
 |-- requirements.txt
 |-- run_stance_control.py
+|-- windows_testbench.html
+|-- WINDOWS_TESTBENCH.md
 |-- model/
 |   `-- right_leg_test_rig.xml
 |-- firmware/
@@ -73,6 +75,18 @@ projects/one_leg/
 |   `-- one_leg_servo_test.ino
 `-- outputs/                 # generated CSV logs; ignored by Git
 ```
+
+## Use now on Windows
+
+Open `windows_testbench.html` directly in a browser. It provides an
+interactive three-dimensional projection, joint and toe-target sliders,
+corrected-IK versus paper-Eq.15 comparison, and a kinematic damped-Jacobian
+toe-hold experiment. See `WINDOWS_TESTBENCH.md` for a controls-lab
+presentation sequence.
+
+This Windows page intentionally has no physics. Results graduate to
+`run_stance_control.py` in MuJoCo once the Ubuntu VM is ready, and then to ROS
+joint-state/TF visualization in RViz.
 
 ## Run
 
