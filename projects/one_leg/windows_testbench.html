@@ -134,7 +134,7 @@
     <section class="stack">
       <div class="panel">
         <h2>Fixed-length leg schematic</h2>
-        <svg id="view" viewBox="0 0 760 500" role="img" aria-label="Projected three dimensional SpotMicro right leg">
+        <svg id="view" viewBox="0 0 760 500" role="img" aria-label="Fixed-length SpotMicro right-leg kinematic schematic">
           <defs>
             <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
               <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#18304b" stroke-width="1"/>
@@ -262,6 +262,12 @@
       // x is fore/aft, y is vertical (negative down), z is lateral/depth.
       return [VIEW_SCALE*(p[0]+0.42*p[2]), VIEW_SCALE*(-p[1]+0.18*p[2])];
     }
+    function fixedLengthVector(p) {
+      // Collapse fore/aft and lateral motion into one horizontal direction,
+      // while preserving both the full 3D magnitude and vertical displacement.
+      const signedHorizontal=(p[0]+0.42*p[2] >= 0 ? 1 : -1)*Math.hypot(p[0],p[2]);
+      return [VIEW_SCALE*signedHorizontal,-VIEW_SCALE*p[1]];
+    }
     function project(p) {
       const v=projectVector(p);
       return [VIEW_ORIGIN[0]+v[0],VIEW_ORIGIN[1]+v[1]];
@@ -269,8 +275,8 @@
     function fixedLengthScreenPoints(points) {
       const lengths=[L1,L2,L3], screen=[project(points[0])];
       for(let i=0;i<3;i++) {
-        const rawA=project(points[i]), rawB=project(points[i+1]);
-        let dx=rawB[0]-rawA[0],dy=rawB[1]-rawA[1],m=Math.hypot(dx,dy);
+        const direction=fixedLengthVector(sub(points[i+1],points[i]));
+        let dx=direction[0],dy=direction[1],m=Math.hypot(dx,dy);
         if(m<1e-9){dx=0;dy=1;m=1;}
         const pixels=VIEW_SCALE*lengths[i], prev=screen[i];
         screen.push([prev[0]+pixels*dx/m,prev[1]+pixels*dy/m]);
@@ -278,7 +284,7 @@
       return screen;
     }
     function schematicPoint(worldPoint,toeWorld,toeScreen) {
-      const delta=projectVector(sub(worldPoint,toeWorld));
+      const delta=fixedLengthVector(sub(worldPoint,toeWorld));
       return [toeScreen[0]+delta[0],toeScreen[1]+delta[1]];
     }
     function setScreenLine(id,a,b) { const n=el(id); n.setAttribute("x1",a[0]);n.setAttribute("y1",a[1]);n.setAttribute("x2",b[0]);n.setAttribute("y2",b[1]); }
@@ -293,7 +299,7 @@
       const T=schematicPoint(target,toe,screenPts[3]); el("targetMark").setAttribute("transform",`translate(${T[0]} ${T[1]})`);
       const selected=targetNow(), groundGoal=anchor||[selected[0],GROUND_Y,selected[2]];
       const G=schematicPoint(groundGoal,toe,screenPts[3]); el("groundGoalMark").setAttribute("transform",`translate(${G[0]} ${G[1]})`);
-      const groundScreenY=schematicPoint([toe[0],GROUND_Y,toe[2]],toe,screenPts[3])[1];
+      const groundScreenY=project([0,GROUND_Y,0])[1];
       const groundLine=el("groundLine"); groundLine.setAttribute("y1",groundScreenY); groundLine.setAttribute("y2",groundScreenY);
       const groundLabel=el("groundLabel"); groundLabel.setAttribute("y",groundScreenY-9);
       const P=screenPts[3]; el("toe").setAttribute("cx",P[0]);el("toe").setAttribute("cy",P[1]);
