@@ -133,7 +133,7 @@
 
     <section class="stack">
       <div class="panel">
-        <h2>3D leg view</h2>
+        <h2>3D leg view (orthographic projection)</h2>
         <svg id="view" viewBox="0 0 760 500" role="img" aria-label="Projected three dimensional SpotMicro right leg">
           <defs>
             <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -160,12 +160,14 @@
           <span><i class="dot" style="background:var(--green)"></i>target</span>
           <span><i class="dot" style="background:var(--red)"></i>actual toe</span>
         </div>
+        <p class="muted">The physical links remain fixed at 55.0, 107.5, and 130.0 mm. Their projected screen lengths can look shorter as they rotate into the depth axis.</p>
       </div>
 
       <div class="panel">
         <h2>Live measurements</h2>
         <div class="metrics">
           <div class="metric"><span>Toe x/y/z</span><strong id="toeMetric">—</strong></div>
+          <div class="metric"><span>Actual L1/L2/L3</span><strong id="linkMetric">55.0 / 107.5 / 130.0 mm</strong></div>
           <div class="metric"><span>Tracking error</span><strong id="errorMetric">—</strong></div>
           <div class="metric"><span>Controller phase</span><strong id="stateMetric">ready above ground</strong></div>
         </div>
@@ -263,6 +265,9 @@
     function setLine(id,a,b) { const A=project(a),B=project(b),n=el(id); n.setAttribute("x1",A[0]);n.setAttribute("y1",A[1]);n.setAttribute("x2",B[0]);n.setAttribute("y2",B[1]); }
     function render() {
       const q=qNow(), pts=fk(q), toe=pts.at(-1), target=activeTarget||anchor||targetNow();
+      const measuredLinks=[norm(sub(pts[1],pts[0])),norm(sub(pts[2],pts[1])),norm(sub(pts[3],pts[2]))];
+      const expectedLinks=[L1,L2,L3];
+      const linkError=Math.max(...measuredLinks.map((v,i)=>Math.abs(v-expectedLinks[i])));
       setLine("link1",pts[0],pts[1]); setLine("link2",pts[1],pts[2]); setLine("link3",pts[2],pts[3]);
       const M=project(mount); el("mount").setAttribute("transform",`translate(${M[0]} ${M[1]})`);
       const T=project(target); el("targetMark").setAttribute("transform",`translate(${T[0]} ${T[1]})`);
@@ -276,6 +281,8 @@
       el("joints").innerHTML=pts.slice(0,3).map(p=>{const a=project(p);return `<circle cx="${a[0]}" cy="${a[1]}" r="7" fill="#08101d" stroke="#eaf2ff" stroke-width="2"/>`}).join("");
       const err=norm(sub(target,toe));
       el("toeMetric").textContent=toe.map(v=>`${(v*1000).toFixed(1)}`).join(" / ")+" mm";
+      el("linkMetric").textContent=measuredLinks.map(v=>(v*1000).toFixed(1)).join(" / ")+" mm"+(linkError<1e-9?" ✓":" — ERROR");
+      el("linkMetric").className=linkError<1e-9?"ok":"bad";
       el("errorMetric").textContent=`${(err*1000).toFixed(2)} mm`;
       drawChart();
     }
