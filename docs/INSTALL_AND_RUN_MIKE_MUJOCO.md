@@ -1,6 +1,25 @@
 # Install and run Mike Spot Micro in MuJoCo
 
-This is the staged runbook. Commands in approval gates are documentation only until explicitly approved. Do not source Foxy for this workspace.
+This is the verified Ubuntu 22.04/Jammy runbook. Do not source Foxy for this workspace.
+
+## Quick start after installation
+
+From the repository root, use the tracked launchers:
+
+```bash
+cd ~/Documents/spotmicro_project
+./scripts/start_spotmicro_sim.sh
+```
+
+In a second terminal:
+
+```bash
+cd ~/Documents/spotmicro_project
+./scripts/start_spotmicro_motion.sh
+```
+
+These start the combined native MuJoCo viewer and RViz, then the existing
+stand/idle motion controller with simulation-safe TF ownership.
 
 ## Gate sequence
 
@@ -21,8 +40,6 @@ source /home/davipeyton8/Documents/spotmicro_project/mike_mujoco_ws/install/setu
 ```
 
 ## Intended validation order
-
-The exact pinned MuJoCo version and final commands will be added after Gate 5 dependency review.
 
 1. Compile `spot_micro_sim.xml` with `mujoco.MjModel.from_xml_path` and confirm `nu == 12`.
 2. Run 1000 headless `mj_step` calls and check for finite state.

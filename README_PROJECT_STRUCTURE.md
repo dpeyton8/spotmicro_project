@@ -33,6 +33,12 @@ Purpose:
 
 This is the main development repository.
 
+The checked-in source includes the verified ROS 2 Humble/RViz/MuJoCo fixes and
+the reusable launchers in `scripts/start_spotmicro_sim.sh` and
+`scripts/start_spotmicro_motion.sh`. The `feature/mujoco-simulation` label is
+the upstream provenance of this source; use the project checkout on `main` for
+the reproducible workflow documented here.
+
 ### `references`
 
 Optional unrelated projects may be stored here later.

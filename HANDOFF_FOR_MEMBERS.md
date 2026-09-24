@@ -224,6 +224,24 @@ Never send a walking command automatically during setup.
 
 ## Verified VM simulation workflow
 
+From a fresh clone with ROS 2 Humble, MuJoCo, and the workspace already built,
+the canonical launch commands are:
+
+```bash
+cd ~/Documents/spotmicro_project
+./scripts/start_spotmicro_sim.sh
+```
+
+In a second terminal:
+
+```bash
+cd ~/Documents/spotmicro_project
+./scripts/start_spotmicro_motion.sh
+```
+
+The scripts source the required ROS/workspace environments and apply the
+simulation display and TF settings. Keep both terminals running.
+
 Use one terminal for the combined MuJoCo and RViz launch:
 
 ```bash
