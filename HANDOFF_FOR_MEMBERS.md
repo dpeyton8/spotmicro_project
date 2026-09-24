@@ -222,6 +222,48 @@ The initial validation order is:
 
 Never send a walking command automatically during setup.
 
+## Verified VM simulation workflow
+
+Use one terminal for the combined MuJoCo and RViz launch:
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+source install/setup.bash
+export DISPLAY=:0
+export QT_QPA_PLATFORM=xcb
+export PYTHONPATH="$PWD/.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
+ros2 launch spot_micro_mujoco_sim mujoco_sim_launch.py \
+  use_rviz:=true use_mujoco_viewer:=true
+```
+
+Use a second terminal for the existing motion controller:
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch spot_micro_motion_cmd motion_cmd_launch.py \
+  run_standalone:=true run_lcd:=false publish_tf:=false
+```
+
+Run only one simulation launch at a time. Duplicate simulation or
+`robot_state_publisher` processes publish competing transforms and make the
+legs appear to jump.
+
+Sit and stand are existing features of the `spot_micro_motion_cmd` state
+machine, not a separate project. Use a third terminal:
+
+```bash
+source /opt/ros/humble/setup.bash
+ros2 topic pub --once /stand_cmd std_msgs/msg/Bool "{data: true}"
+ros2 topic pub --once /idle_cmd std_msgs/msg/Bool "{data: true}"
+```
+
+The repository calls the sitting pose `idle`. The verified MuJoCo bridge
+mapping is `LF_1` -> servo 12 and `LF_3` -> servo 10.
+
 ## Physical build resources
 
 The physical frame is based on Deok-yeon Kim's KDY0523 SpotMicro:

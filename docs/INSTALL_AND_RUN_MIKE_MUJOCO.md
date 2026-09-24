@@ -41,4 +41,7 @@ The exact pinned MuJoCo version and final commands will be added after Gate 5 de
 - Keep `run_lcd:=false` to avoid LCD/I2C access.
 - Do not use the combined SLAM launch for this setup; it starts lidar-related components.
 - Video recording additionally needs Pillow and the external `ffmpeg` executable. Pillow is imported unconditionally by the simulation node even when recording is disabled.
+- For the VM workflow, run the motion controller with `publish_tf:=false` so
+	`robot_state_publisher` is the sole owner of the leg transforms.
+- The verified MuJoCo mapping is `LF_1` on servo 12 and `LF_3` on servo 10.
 

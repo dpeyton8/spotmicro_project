@@ -95,7 +95,9 @@ SpotMicroMotionCmd::SpotMicroMotionCmd() : Node("spot_micro_motion_cmd") {
   transform_br_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   static_transform_br_ = std::make_unique<tf2_ros::StaticTransformBroadcaster>(*this);
 
-  publishStaticTransforms();
+  if (smnc_.publish_tf) {
+    publishStaticTransforms();
+  }
 }
 
 SpotMicroMotionCmd::~SpotMicroMotionCmd() {
@@ -117,7 +119,9 @@ void SpotMicroMotionCmd::runOnce() {
   }
 
   publishLcdMonitorData();
-  publishDynamicTransforms();
+  if (smnc_.publish_tf) {
+    publishDynamicTransforms();
+  }
 
   if (smnc_.publish_odom) {
     integrateOdometry();
@@ -298,6 +302,7 @@ void SpotMicroMotionCmd::readInConfigParameters() {
   this->declare_parameter<double>("back_body_balance_shift", 0.0);
   this->declare_parameter<double>("side_body_balance_shift", 0.0);
   this->declare_parameter<bool>("publish_odom", false);
+  this->declare_parameter<bool>("publish_tf", true);
   this->declare_parameter<double>("lidar_x_pos", 0.0);
   this->declare_parameter<double>("lidar_y_pos", 0.0);
   this->declare_parameter<double>("lidar_z_pos", 0.0);
@@ -321,6 +326,7 @@ void SpotMicroMotionCmd::readInConfigParameters() {
   smnc_.dt = static_cast<float>(this->get_parameter("dt").as_double());
   smnc_.debug_mode = this->get_parameter("debug_mode").as_bool();
   smnc_.plot_mode = this->get_parameter("plot_mode").as_bool();
+  smnc_.publish_tf = this->get_parameter("publish_tf").as_bool();
   smnc_.max_fwd_velocity = static_cast<float>(this->get_parameter("max_fwd_velocity").as_double());
   smnc_.max_side_velocity = static_cast<float>(this->get_parameter("max_side_velocity").as_double());
   smnc_.max_yaw_rate = static_cast<float>(this->get_parameter("max_yaw_rate").as_double());

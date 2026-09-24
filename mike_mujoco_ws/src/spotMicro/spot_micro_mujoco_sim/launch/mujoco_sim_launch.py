@@ -23,7 +23,10 @@ def generate_launch_description():
     except Exception:
         urdf_xml = "<robot name=\"spot_micro_rviz\"/>"
 
-    rviz_config = os.path.join(pkg_share, "config", "spot_micro.rviz")
+    rviz_config = os.path.join(
+        get_package_share_directory("spot_micro_rviz"),
+        "rviz", "spot_micro.rviz"
+    )
     has_rviz_config = os.path.exists(rviz_config)
 
     return LaunchDescription([

@@ -35,9 +35,9 @@ class SpotMicroMujocoSim(Node):
         "LB_1": {"num": 9,  "center_angle_deg": -0.4,  "direction": -1},
         "LB_2": {"num": 8,  "center_angle_deg": 38.7,  "direction":  1},
         "LB_3": {"num": 7,  "center_angle_deg": -73.9, "direction":  1},
-        "LF_1": {"num": 10, "center_angle_deg": -7.6,  "direction":  1},
+        "LF_1": {"num": 12, "center_angle_deg": -7.6,  "direction":  1},
         "LF_2": {"num": 11, "center_angle_deg": 38.6,  "direction":  1},
-        "LF_3": {"num": 12, "center_angle_deg": -82.8, "direction":  1},
+        "LF_3": {"num": 10, "center_angle_deg": -82.8, "direction":  1},
     }
 
     # Kinematic -> URDF joint angle signs.  These must match the TF convention in

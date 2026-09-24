@@ -11,6 +11,7 @@ def generate_launch_description():
     run_standalone = LaunchConfiguration('run_standalone')
     debug_mode = LaunchConfiguration('debug_mode')
     run_lcd = LaunchConfiguration('run_lcd')
+    publish_tf = LaunchConfiguration('publish_tf')
 
     config = os.path.join(
         get_package_share_directory('spot_micro_motion_cmd'),
@@ -30,6 +31,10 @@ def generate_launch_description():
             'run_lcd',
             default_value='false',
             description='Run lcd monitor node'),
+        DeclareLaunchArgument(
+            'publish_tf',
+            default_value='true',
+            description='Publish motion-controller TF'),
 
         Node(
             package='i2cpwm_board',
@@ -43,7 +48,7 @@ def generate_launch_description():
             executable='spot_micro_motion_cmd_node',
             name='spot_micro_motion_cmd',
             output='screen',
-            parameters=[config]),
+            parameters=[config, {'publish_tf': publish_tf}]),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(

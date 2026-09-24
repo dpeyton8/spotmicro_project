@@ -15,5 +15,14 @@ Audit date: 2026-07-19. Workspace: `/home/davipeyton8/Documents/spotmicro_projec
 | MuJoCo state | FAIL | `python3 -m pip show mujoco` reports not installed; no standalone `simulate` executable | Gate 5: install official pinned Python wheel in workspace venv |
 | colcon build state | PARTIAL | `/usr/bin/colcon` and extensions installed; `colcon list` discovers ROS 2 packages plus obsolete duplicate ROS 1 package; build not attempted | Add non-destructive `COLCON_IGNORE` later, then build after dependencies |
 | MJCF test state | PARTIAL | XML exists and statically contains 12 position actuators; compilation cannot be tested because MuJoCo is absent | Compile and run 1000 headless steps after Gate 5 |
-| Simulation launch state | PARTIAL | `mujoco_sim_launch.py` exists and exposes `use_rviz`; runtime not tested | Test without RViz, topics/TF, then RViz after build |
+| Simulation launch state | PASS | Ubuntu 22.04 VM has ROS 2 Humble, MuJoCo 3.10.0, RViz, and a passing headless launch; the corrected source is rebuilt locally | Launch one combined MuJoCo/RViz stack and one motion controller |
+
+Verified fixes:
+
+- RViz uses ROS 2 Humble plugin IDs, `base_link`, and `/robot_description`.
+- The simulation launch uses the existing RViz configuration.
+- `publish_tf:=false` prevents duplicate leg transforms in simulation.
+- The MuJoCo front-left mapping is `LF_1` -> servo 12 and `LF_3` -> servo 10.
+- Existing `/stand_cmd` and `/idle_cmd` state-machine commands were tested in
+	both poses.
 
