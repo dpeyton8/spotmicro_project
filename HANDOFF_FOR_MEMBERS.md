@@ -282,6 +282,14 @@ ros2 topic pub --once /idle_cmd std_msgs/msg/Bool "{data: true}"
 The repository calls the sitting pose `idle`. The verified MuJoCo bridge
 mapping is `LF_1` -> servo 12 and `LF_3` -> servo 10.
 
+The MuJoCo bridge recovers target angles from the centered proportional command;
+it must not apply the physical servo direction multiplier a second time. A
+double inversion offsets the RF_1 and LB_1 shoulder joints.
+
+To stop the stack, press `Ctrl+C` in the simulation and motion-controller
+terminals. The one-shot command terminal exits by itself. Restart with
+`start_spotmicro_sim.sh` once and then `start_spotmicro_motion.sh` once.
+
 ## Physical build resources
 
 The physical frame is based on Deok-yeon Kim's KDY0523 SpotMicro:

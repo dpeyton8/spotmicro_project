@@ -312,11 +312,9 @@ class SpotMicroMujocoSim(Node):
         if not cfg:
             return 0.0
         sign = self.get_parameter(f"joint_signs.{servo_name}").value
-        direction = float(cfg.get("direction", 1))
         center_rad = cfg["center_angle_deg"] * math.pi / 180.0
-        # Motion cmd computes: proportional = (cmd_kin - center) / max * direction
-        # Recover kinematic angle: cmd_kin = proportional * max * direction + center
-        cmd_kin_rad = proportional * self.servo_max_angle_rad * direction + center_rad
+        # Motion cmd already encodes the centered target in proportional units.
+        cmd_kin_rad = proportional * self.servo_max_angle_rad + center_rad
         return sign * cmd_kin_rad
 
     def _capture_frame(self):

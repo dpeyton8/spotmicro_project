@@ -48,6 +48,8 @@ Verified fixes:
 - The simulation launch uses the existing RViz configuration.
 - `publish_tf:=false` prevents duplicate leg transforms in simulation.
 - The MuJoCo front-left mapping is `LF_1` -> servo 12 and `LF_3` -> servo 10.
+- The MuJoCo bridge does not reapply the hardware direction multiplier to
+	proportional commands. This removes the RF_1/LB_1 shoulder offset.
 - Existing `/stand_cmd` and `/idle_cmd` state-machine commands were tested in
 	both poses.
 

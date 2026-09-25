@@ -61,4 +61,12 @@ source /home/davipeyton8/Documents/spotmicro_project/mike_mujoco_ws/install/setu
 - For the VM workflow, run the motion controller with `publish_tf:=false` so
 	`robot_state_publisher` is the sole owner of the leg transforms.
 - The verified MuJoCo mapping is `LF_1` on servo 12 and `LF_3` on servo 10.
+- The motion controller already converts target angles to proportional units.
+	The MuJoCo bridge must not apply the hardware direction multiplier again;
+	double inversion offsets RF_1 and LB_1 shoulders.
+
+To stop normally, press `Ctrl+C` in the simulation terminal and in the motion
+controller terminal. The one-shot stand/idle command terminal returns to its
+prompt automatically. Restart by running `start_spotmicro_sim.sh` once, then
+`start_spotmicro_motion.sh` once. Do not start duplicate launches.
 
