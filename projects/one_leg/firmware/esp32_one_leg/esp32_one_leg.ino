@@ -5,7 +5,7 @@
   Install the Adafruit PWM Servo Driver Library before compiling.
   This sketch defaults to the left-front leg (LF).
 
-  This test uses PCA9685 channels 0, 1, and 2 for the three motors.
+  Channel 0 = shoulder/q1, channel 1 = hip/q2, channel 2 = knee/q3.
   GPIO 21 and GPIO 22 remain the ESP32 I2C SDA and SCL pins.
 */
 
@@ -32,11 +32,12 @@ struct Joint {
   float centerAngleDeg;
 };
 
-// Left leg: motor 1 = knee, motor 2 = shoulder, motor 3 = hip.
+// Standard leg order: channel 0 = shoulder/q1, 1 = hip/q2, 2 = knee/q3.
+// Calibration values below are for the left-front leg (LF).
 Joint leg[] = {
-  {"knee",    0, 306, 387,  1, -82.8f},
-  {"shoulder", 1, 306, 397,  1, 38.6f},
-  {"hip",      2, 306, 389,  1, -7.6f}
+  {"shoulder/q1", 0, 306, 389, 1, -7.6f},
+  {"hip/q2",      1, 306, 397, 1, 38.6f},
+  {"knee/q3",     2, 306, 387, 1, -82.8f}
 };
 
 constexpr size_t JOINT_COUNT = sizeof(leg) / sizeof(leg[0]);

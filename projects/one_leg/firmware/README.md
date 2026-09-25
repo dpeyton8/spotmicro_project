@@ -1,8 +1,25 @@
 # ESP32/PCA9685 physical test notes
 
-`one_leg_servo_test.ino` is a deliberately limited commissioning tool for a
-right leg mounted in a rigid fixture. It is not yet the MuJoCo stance
-controller and it does not perform an automatic sweep.
+`one_leg_servo_test.ino` is the recommended first-use commissioning tool for a
+leg mounted in a rigid fixture. It is not the MuJoCo stance controller and it
+does not perform an automatic sweep.
+
+All three-motor sketches use the same PCA9685 order:
+
+| Channel | Joint |
+|---:|---|
+| 0 | Shoulder / q1 |
+| 1 | Hip pitch / q2 |
+| 2 | Knee / q3 |
+
+Sketches have different purposes:
+
+- `one_leg_servo_test.ino`: manually commands one channel in microseconds;
+   use it first to find center and conservative limits, with horns disconnected.
+- `one_leg_angle_control/one_leg_angle_control.ino`: accepts
+   `shoulder,hip,knee` angles using the current LF calibration values.
+- `esp32_one_leg/esp32_one_leg.ino`: repeatedly sweeps each joint by 25 degrees
+   around its configured center; use only after calibration, in a secured fixture.
 
 ## Connections
 

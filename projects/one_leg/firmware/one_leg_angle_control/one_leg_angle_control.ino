@@ -19,11 +19,12 @@ struct Joint {
   float centerAngleDeg;
 };
 
-// Three motors connected to PCA9685 channels 0, 1, and 2.
+// Standard leg order: channel 0 = shoulder/q1, 1 = hip/q2, 2 = knee/q3.
+// Calibration values below are for the left-front leg (LF).
 Joint leg[] = {
-  {"knee",     0, 306, 387, 1, -82.8f},
-  {"shoulder", 1, 306, 397, 1,  38.6f},
-  {"hip",      2, 306, 389, 1,  -7.6f}
+  {"shoulder/q1", 0, 306, 389, 1,  -7.6f},
+  {"hip/q2",      1, 306, 397, 1,  38.6f},
+  {"knee/q3",     2, 306, 387, 1, -82.8f}
 };
 
 constexpr size_t JOINT_COUNT = sizeof(leg) / sizeof(leg[0]);
@@ -68,21 +69,21 @@ void moveLegToNeutral() {
   delay(1000);
 }
 
-bool parseAngles(const String& input, float& kneeAngle, float& shoulderAngle, float& hipAngle) {
+bool parseAngles(const String& input, float& shoulderAngle, float& hipAngle, float& kneeAngle) {
   const int firstComma = input.indexOf(',');
   const int secondComma = input.indexOf(',', firstComma + 1);
   if (firstComma <= 0 || secondComma <= firstComma + 1 || secondComma >= input.length() - 1) {
     return false;
   }
-  kneeAngle = input.substring(0, firstComma).toFloat();
-  shoulderAngle = input.substring(firstComma + 1, secondComma).toFloat();
-  hipAngle = input.substring(secondComma + 1).toFloat();
+  shoulderAngle = input.substring(0, firstComma).toFloat();
+  hipAngle = input.substring(firstComma + 1, secondComma).toFloat();
+  kneeAngle = input.substring(secondComma + 1).toFloat();
   return true;
 }
 
 void printPrompt() {
-  Serial.println("Enter KNEE,SHOULDER,HIP angles in degrees:");
-  Serial.println("Example: -82.8,38.6,-7.6");
+  Serial.println("Enter SHOULDER/Q1,HIP/Q2,KNEE/Q3 angles in degrees:");
+  Serial.println("Example: -7.6,38.6,-82.8");
 }
 
 void setup() {
@@ -103,18 +104,18 @@ void loop() {
 
   String inputResult = Serial.readStringUntil('\n');
   inputResult.trim();
-  float kneeAngle;
   float shoulderAngle;
   float hipAngle;
+  float kneeAngle;
 
-  if (!parseAngles(inputResult, kneeAngle, shoulderAngle, hipAngle)) {
-    Serial.println("Invalid input. Use: knee,shoulder,hip");
+  if (!parseAngles(inputResult, shoulderAngle, hipAngle, kneeAngle)) {
+    Serial.println("Invalid input. Use: shoulder,hip,knee");
     printPrompt();
     return;
   }
 
-  moveJoint(leg[0], kneeAngle, 20);
-  moveJoint(leg[1], shoulderAngle, 20);
-  moveJoint(leg[2], hipAngle, 20);
+  moveJoint(leg[0], shoulderAngle, 20);
+  moveJoint(leg[1], hipAngle, 20);
+  moveJoint(leg[2], kneeAngle, 20);
   printPrompt();
 }
