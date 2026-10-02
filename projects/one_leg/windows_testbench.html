@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SpotMicro One Right Leg Controls Testbench</title>
+  <title>SpotMicro One Left Leg Controls Testbench</title>
   <style>
     :root {
       color-scheme: dark;
@@ -83,36 +83,36 @@
 </head>
 <body>
   <header>
-    <h1>SpotMicro one-right-leg controls testbench</h1>
-    <p class="muted">Interactive forward kinematics, corrected inverse kinematics, paper-formula comparison, and toe-hold control.</p>
-    <span class="badge">Windows kinematic preview — no gravity, torque, collision, or real floor force</span>
+    <h1>SpotMicro one-left-leg control testbench</h1>
+    <p class="muted">Firmware-matched joint angles, foot targeting, and a simulated ground-hold test.</p>
+    <span class="badge">Kinematic preview only — physical contact and servo feedback require MuJoCo or hardware</span>
   </header>
 
   <main>
     <section class="stack">
       <div class="panel">
-        <h2>1 · Cometyang / RViz right-leg joints</h2>
-        <div class="row"><label for="q1">shoulder</label><input id="q1" type="range" min="-31.4" max="31.4" step="0.1" value="18"><output id="q1o">18.0°</output></div>
-        <div class="row"><label for="q2">upper leg</label><input id="q2" type="range" min="-152.7" max="88.7" step="0.1" value="30"><output id="q2o">30.0°</output></div>
-        <div class="row"><label for="q3">knee/foot</label><input id="q3" type="range" min="-149.0" max="5.7" step="0.1" value="-83"><output id="q3o">-83.0°</output></div>
-        <p class="muted"><code>front_right_shoulder</code>, <code>front_right_leg</code>, and <code>front_right_foot</code>. These are the angles RViz receives. For the right leg, repository IK angles map as <code>[q1, -q2, -q3]</code>.</p>
+        <h2>1 · Left-leg firmware joint angles</h2>
+        <div class="row"><label for="q1">shoulder / q1</label><input id="q1" type="range" min="-90.1" max="74.9" step="0.1" value="-7.6"><output id="q1o">-7.6°</output></div>
+        <div class="row"><label for="q2">hip / q2</label><input id="q2" type="range" min="-43.9" max="121.1" step="0.1" value="38.6"><output id="q2o">38.6°</output></div>
+        <div class="row"><label for="q3">knee / q3</label><input id="q3" type="range" min="-165.3" max="-0.3" step="0.1" value="-82.8"><output id="q3o">-82.8°</output></div>
+        <p class="muted"><code>front_left_shoulder</code>, <code>front_left_leg</code>, and <code>front_left_foot</code>. These are absolute calibrated angles in the firmware input order <code>shoulder,hip,knee</code>. Centers are <code>-7.6°,38.6°,-82.8°</code>; each slider applies the firmware's ±82.5° software limit.</p>
       </div>
 
       <div class="panel">
-        <h2>2 · Initial toe position</h2>
-        <div class="row"><label for="tx">x fore/aft</label><input id="tx" type="range" min="-0.12" max="0.12" step="0.001" value="0"><output id="txo">0 mm</output></div>
-        <div class="row"><label for="ty">y vertical</label><input id="ty" type="range" min="-0.20" max="-0.06" step="0.001" value="-0.12"><output id="tyo">-120 mm</output></div>
-        <div class="row"><label for="tz">z lateral</label><input id="tz" type="range" min="-0.10" max="0.10" step="0.001" value="0.05"><output id="tzo">50 mm</output></div>
+        <h2>2 · Foot target above the ground</h2>
+        <div class="row"><label for="tx">target x</label><input id="tx" type="range" min="-0.12" max="0.12" step="0.001" value="0"><output id="txo">0 mm</output></div>
+        <div class="row"><label for="height">height above ground</label><input id="height" type="range" min="0" max="120" step="1" value="60"><output id="heighto">60 mm</output></div>
+        <div class="row"><label for="tz">target z</label><input id="tz" type="range" min="-0.10" max="0.10" step="0.001" value="0.05"><output id="tzo">50 mm</output></div>
         <div class="buttons">
-          <button class="primary" id="corrected">Solve corrected IK</button>
-          <button id="paper">Apply paper Eq.15 q1</button>
+          <button class="primary" id="corrected">Move foot to target</button>
         </div>
         <p id="reach" class="muted">Target status</p>
+        <p class="muted">Ground is at <code>y = -180 mm</code>. Height defines the starting toe position above that ground plane.</p>
       </div>
 
       <div class="panel">
-        <h2>3 · Toe-hold experiment</h2>
-        <p>First lowers the toe from its selected starting target to the ground, then moves the mount while holding that ground point.</p>
+        <h2>3 · Lower to ground and hold</h2>
+        <p>Moves from the selected height to the ground target, then applies a small fixture disturbance while trying to keep the toe at that point.</p>
         <div class="row"><label for="gain">gain</label><input id="gain" type="range" min="0.02" max="0.80" step="0.01" value="0.28"><output id="gaino">0.28</output></div>
         <div class="row"><label for="damping">damping</label><input id="damping" type="range" min="0.001" max="0.080" step="0.001" value="0.020"><output id="dampingo">0.020</output></div>
         <div class="buttons">
@@ -123,8 +123,9 @@
       </div>
 
       <div class="panel">
-        <h2>Presentation connection</h2>
-        <div class="flow">toe target → IK/Jacobian → q1,q2,q3 → simulated leg → measured toe</div>
+        <h2>Firmware command</h2>
+        <div class="flow">Serial Monitor input: <code id="firmwareCommand">-7.6,38.6,-82.8</code></div>
+        <p class="muted">Order is <code>shoulder,hip,knee</code>, matching the left-leg Arduino sketch. The page previews this command but does not send it to the ESP32.</p>
         <details open>
           <summary>What this demonstrates</summary>
           <p>Reference, feedback error, controller gain, damping, joint limits, reachability, and tracking error.</p>
@@ -150,8 +151,8 @@
 
     <section class="stack">
       <div class="panel">
-        <h2>Fixed-length leg schematic</h2>
-        <svg id="view" viewBox="0 0 760 500" role="img" aria-label="Fixed-length SpotMicro right-leg kinematic schematic">
+        <h2>Left-leg motion preview</h2>
+        <svg id="view" viewBox="0 0 760 500" role="img" aria-label="SpotMicro left-leg kinematic preview">
           <defs>
             <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
               <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#18304b" stroke-width="1"/>
@@ -192,10 +193,10 @@
       </div>
 
       <div class="panel">
-        <h2>Corrected repository IK versus paper Eq.15</h2>
+        <h2>Foot target and command status</h2>
         <div class="comparison">
-          <div><strong class="ok">Corrected q1</strong><p id="correctResult">Choose a target and solve.</p></div>
-          <div><strong class="bad">Paper q1</strong><p id="paperResult">The sign difference can put the toe away from the target.</p></div>
+          <div><strong class="ok">Firmware joint order</strong><p>shoulder / q1, hip / q2, knee / q3</p></div>
+          <div><strong>Selected foot target</strong><p>x, height above ground, and z; solver rejects unreachable targets</p></div>
         </div>
       </div>
     </section>
@@ -204,20 +205,17 @@
   <script>
     "use strict";
     const L1 = 0.055, L2 = 0.1075, L3 = 0.130;
-    // Cometyang bridge convention for the front-right leg:
-    // RViz/MuJoCo = [kinematic q1, -kinematic q2, -kinematic q3].
-    const RVIZ_SIGNS = [1,-1,-1];
-    const RVIZ_LIMITS = [[-0.548,0.548],[-2.666,1.548],[-2.6,0.1]];
-    const KINEMATIC_LIMITS = RVIZ_LIMITS.map((range,i) => {
-      const mapped=range.map(v=>v*RVIZ_SIGNS[i]);
-      return [Math.min(...mapped),Math.max(...mapped)];
-    });
-    // The paper/repository leg frame uses negative y as down.
+    const JOINT_CENTERS_DEG = [-7.6, 38.6, -82.8];
+    const MAX_JOINT_ANGLE_DEG = 82.5;
+    const KINEMATIC_LIMITS = JOINT_CENTERS_DEG.map(center => [
+      (center - MAX_JOINT_ANGLE_DEG) * Math.PI / 180,
+      (center + MAX_JOINT_ANGLE_DEG) * Math.PI / 180
+    ]);
     const GROUND_Y = -0.180, LOWERING_TIME_S = 2.5;
     const deg = r => r * 180 / Math.PI;
     const rad = d => d * Math.PI / 180;
     const el = id => document.getElementById(id);
-    const controls = ["q1", "q2", "q3", "tx", "ty", "tz", "gain", "damping"];
+    const controls = ["q1", "q2", "q3", "tx", "height", "tz", "gain", "damping"];
     let mount = [0, 0, 0], running = false, animationStart = 0, lastFrame = 0;
     let anchor = null, startTarget = null, activeTarget = null, history = [];
 
@@ -241,25 +239,21 @@
       const D=(x*x+y*y+z*z-L1*L1-L2*L2-L3*L3)/(2*L2*L3);
       if (radial < 0 || Math.abs(D) > 1) return null;
       const root=Math.sqrt(Math.max(0,radial));
-      const q3=Math.atan2(Math.sqrt(Math.max(0,1-D*D)),D);
+      const q3=Math.atan2(-Math.sqrt(Math.max(0,1-D*D)),D);
       const q2=Math.atan2(z,root)-Math.atan2(L3*Math.sin(q3),L2+L3*Math.cos(q3));
       const q1=Math.atan2(y,x)+Math.atan2(root,-L1);
-      return [q1,q2,q3];
+      const solution=[q1,q2,q3];
+      return solution.every((angle,index) =>
+        angle >= KINEMATIC_LIMITS[index][0] - 1e-9 &&
+        angle <= KINEMATIC_LIMITS[index][1] + 1e-9
+      ) ? solution : null;
     }
-    function paperQ1(target) {
-      const [x,y]=target, radial=x*x+y*y-L1*L1;
-      if (radial < 0) return NaN;
-      return -Math.atan2(-y,x)-Math.atan2(Math.sqrt(radial),-L1);
-    }
-    function rvizToKinematic(q) { return q.map((v,i)=>v*RVIZ_SIGNS[i]); }
-    function kinematicToRviz(q) { return q.map((v,i)=>v*RVIZ_SIGNS[i]); }
-    function qNow() { return rvizToKinematic([rad(+el("q1").value),rad(+el("q2").value),rad(+el("q3").value)]); }
+    function qNow() { return ["q1","q2","q3"].map(id=>rad(+el(id).value)); }
     function setQ(q) {
-      const rviz=kinematicToRviz(q);
-      ["q1","q2","q3"].forEach((id,i)=>el(id).value=deg(rviz[i]));
+      ["q1","q2","q3"].forEach((id,i)=>el(id).value=deg(q[i]));
       updateOutputs();
     }
-    function targetNow() { return [+el("tx").value,+el("ty").value,+el("tz").value]; }
+    function targetNow() { return [+el("tx").value,GROUND_Y+(+el("height").value/1000),+el("tz").value]; }
     function norm(v) { return Math.hypot(...v); }
     function sub(a,b) { return a.map((v,i)=>v-b[i]); }
 
@@ -345,28 +339,36 @@
     }
     function updateOutputs() {
       ["q1","q2","q3"].forEach(id=>el(id+"o").textContent=(+el(id).value).toFixed(1)+"°");
-      ["tx","ty","tz"].forEach(id=>el(id+"o").textContent=Math.round(+el(id).value*1000)+" mm");
+      el("txo").textContent=Math.round(+el("tx").value*1000)+" mm";
+      el("heighto").textContent=Math.round(+el("height").value)+" mm";
+      el("tzo").textContent=Math.round(+el("tz").value*1000)+" mm";
+      el("firmwareCommand").textContent=["q1","q2","q3"].map(id=>(+el(id).value).toFixed(1)).join(",");
       el("gaino").textContent=(+el("gain").value).toFixed(2); el("dampingo").textContent=(+el("damping").value).toFixed(3);
       render();
     }
     function solveCorrected() {
-      running=false; mount=[0,0,0]; anchor=null; const target=targetNow(), q=correctedIK(target);
-      if(!q) { el("reach").innerHTML='<span class="bad">Unreachable target</span>'; return; }
+      running=false; mount=[0,0,0]; anchor=null; activeTarget=null;
+      const target=targetNow(), q=correctedIK(target);
+      if(!q) {
+        el("reach").innerHTML='<span class="bad">Target is unreachable or requires an angle outside the left-leg firmware limits.</span>';
+        return false;
+      }
       setQ(q); const error=norm(sub(fk(q).at(-1),target));
-      el("reach").innerHTML='<span class="ok">Reachable using the right-leg positive-knee branch</span>';
-      const rvizQ=kinematicToRviz(q);
-      el("correctResult").textContent=`RViz joints = ${rvizQ.map(v=>deg(v).toFixed(2)+"°").join(", ")}; toe error ${(error*1000).toFixed(4)} mm`;
-      const qp=[paperQ1(target),q[1],q[2]], pe=norm(sub(fk(qp).at(-1),target));
-      el("paperResult").textContent=`RViz shoulder q1 = ${deg(qp[0]).toFixed(2)}°; reconstructed toe error ${(pe*1000).toFixed(2)} mm`;
+      el("reach").innerHTML='<span class="ok">Reachable within the left-leg firmware limits.</span>';
+      el("reach").textContent+=` Foot position error: ${(error*1000).toFixed(2)} mm.`;
+      return true;
     }
-    function applyPaper() { const target=targetNow(), q=correctedIK(target); if(!q)return; q[0]=paperQ1(target); setQ(q); }
     function start() {
-      solveCorrected();
+      if(!solveCorrected()) {
+        el("stateMetric").textContent="target rejected";
+        render();
+        return;
+      }
       startTarget=fk(qNow()).at(-1);
       anchor=[startTarget[0],GROUND_Y,startTarget[2]];
       if(!correctedIK(anchor)) {
         running=false; anchor=null; activeTarget=null;
-        el("reach").innerHTML='<span class="bad">Cannot lower vertically to ground from this x/z: the ground point is outside the leg workspace. Choose x closer to 0 or reduce lateral z.</span>';
+        el("reach").innerHTML='<span class="bad">Cannot reach the ground target within the left-leg firmware limits. Reduce target x/z or change the starting height.</span>';
         el("stateMetric").textContent="ground unreachable";
         render(); return;
       }
@@ -376,7 +378,7 @@
     function stop() { running=false;el("stateMetric").textContent="stopped"; }
     function reset() {
       running=false;mount=[0,0,0];anchor=null;activeTarget=null;startTarget=null;history=[];
-      el("tx").value=0;el("ty").value=-0.12;el("tz").value=0.05;
+      el("tx").value=0;el("height").value=60;el("tz").value=0.05;
       el("stateMetric").textContent="manual";updateOutputs();solveCorrected();
     }
     function tick(now) {
@@ -399,8 +401,13 @@
       ctx.fillStyle="#9db0ca";ctx.font="14px system-ui";ctx.fillText("toe error history (0–20 mm)",12,20);
       if(history.length<2)return;ctx.strokeStyle="#ff5c68";ctx.lineWidth=3;ctx.beginPath();history.forEach((v,i)=>{const x=i/(history.length-1)*w,y=h-Math.min(20,v)/20*(h-28);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();
     }
-    controls.forEach(id=>el(id).addEventListener("input",()=>{if(id.startsWith("q")){running=false;anchor=null;el("stateMetric").textContent="manual";}updateOutputs();}));
-    el("corrected").onclick=solveCorrected;el("paper").onclick=applyPaper;el("start").onclick=start;el("stop").onclick=stop;el("reset").onclick=reset;
+    controls.forEach(id=>el(id).addEventListener("input",()=>{
+      if(id.startsWith("q") || ["tx","height","tz"].includes(id)) {
+        running=false;anchor=null;activeTarget=null;el("stateMetric").textContent="manual";
+      }
+      updateOutputs();
+    }));
+    el("corrected").onclick=solveCorrected;el("start").onclick=start;el("stop").onclick=stop;el("reset").onclick=reset;
     solveCorrected();
     // Useful for automated browser smoke tests and presentation links.
     if (new URLSearchParams(window.location.search).has("autorun")) {

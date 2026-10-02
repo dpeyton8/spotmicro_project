@@ -30,6 +30,11 @@ EXPECTED_JOINTS = {
     "front_right_leg",
     "front_right_foot",
 }
+EXPECTED_LEFT_JOINTS = {
+    "front_left_shoulder",
+    "front_left_leg",
+    "front_left_foot",
+}
 EXPECTED_ACTUATORS = {f"{name}_actuator" for name in EXPECTED_JOINTS}
 
 
@@ -80,30 +85,19 @@ class IntegrationContract(unittest.TestCase):
         rviz_joint_names = xml_names(GENERATED_URDF, "joint")
         self.assertTrue(EXPECTED_JOINTS <= rviz_joint_names)
 
-    def test_windows_testbench_uses_cometyang_rviz_conventions(self):
+    def test_windows_testbench_matches_left_leg_firmware_conventions(self):
         html = WINDOWS_TESTBENCH.read_text(encoding="utf-8")
-        for joint_name in EXPECTED_JOINTS:
+        for joint_name in EXPECTED_LEFT_JOINTS:
             self.assertIn(joint_name, html)
 
-        signs_match = re.search(r"const RVIZ_SIGNS = (\[[^;]+\]);", html)
-        limits_match = re.search(r"const RVIZ_LIMITS = (\[[^;]+\]);", html)
-        self.assertIsNotNone(signs_match)
-        self.assertIsNotNone(limits_match)
-        self.assertEqual(ast.literal_eval(signs_match.group(1)), [1, -1, -1])
-
-        urdf = ET.parse(GENERATED_URDF)
-        joints = {node.attrib["name"]: node for node in urdf.iter("joint")}
-        expected_limits = []
-        for joint_name in (
-            "front_right_shoulder",
-            "front_right_leg",
-            "front_right_foot",
-        ):
-            limit = joints[joint_name].find("limit")
-            expected_limits.append(
-                [float(limit.attrib["lower"]), float(limit.attrib["upper"])]
-            )
-        self.assertEqual(ast.literal_eval(limits_match.group(1)), expected_limits)
+        centers_match = re.search(r"const JOINT_CENTERS_DEG = (\[[^;]+\]);", html)
+        maximum_match = re.search(r"const MAX_JOINT_ANGLE_DEG = ([\d.]+);", html)
+        self.assertIsNotNone(centers_match)
+        self.assertIsNotNone(maximum_match)
+        self.assertEqual(ast.literal_eval(centers_match.group(1)), [-7.6, 38.6, -82.8])
+        self.assertEqual(float(maximum_match.group(1)), 82.5)
+        self.assertIn("shoulder,hip,knee", html)
+        self.assertIn("Math.atan2(-Math.sqrt", html)
 
 
 if __name__ == "__main__":

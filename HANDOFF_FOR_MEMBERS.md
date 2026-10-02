@@ -286,8 +286,15 @@ The MuJoCo bridge recovers target angles from the centered proportional command;
 it must not apply the physical servo direction multiplier a second time. A
 double inversion offsets the RF_1 and LB_1 shoulder joints.
 
-To stop the stack, press `Ctrl+C` in the simulation and motion-controller
-terminals. The one-shot command terminal exits by itself. Restart with
+To stop both ROS launches from one terminal, run:
+
+```bash
+cd ~/Documents/spotmicro_project
+./scripts/stop_spotmicro.sh
+```
+
+The terminal windows stay open; the launch commands exit after their nodes shut
+down. The one-shot command terminal exits by itself. Restart with
 `start_spotmicro_sim.sh` once and then `start_spotmicro_motion.sh` once.
 
 ## Physical build resources

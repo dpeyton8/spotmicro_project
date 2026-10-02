@@ -65,8 +65,9 @@ source /home/davipeyton8/Documents/spotmicro_project/mike_mujoco_ws/install/setu
 	The MuJoCo bridge must not apply the hardware direction multiplier again;
 	double inversion offsets RF_1 and LB_1 shoulders.
 
-To stop normally, press `Ctrl+C` in the simulation terminal and in the motion
-controller terminal. The one-shot stand/idle command terminal returns to its
-prompt automatically. Restart by running `start_spotmicro_sim.sh` once, then
-`start_spotmicro_motion.sh` once. Do not start duplicate launches.
+To stop both ROS launches from one terminal, run `./scripts/stop_spotmicro.sh`
+from the repository root. The terminal windows stay open; the launch commands
+exit after their nodes shut down. The one-shot stand/idle command terminal
+returns to its prompt automatically. Restart by running `start_spotmicro_sim.sh`
+once, then `start_spotmicro_motion.sh` once. Do not start duplicate launches.
 

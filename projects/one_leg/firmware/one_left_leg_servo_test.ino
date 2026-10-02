@@ -1,5 +1,5 @@
 /*
-  SpotMicro one-right-leg manual servo commissioning tool.
+  SpotMicro left-front-leg manual servo commissioning tool.
 
   Hardware:
     ESP32

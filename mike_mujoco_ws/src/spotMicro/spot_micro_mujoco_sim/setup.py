@@ -11,6 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/mujoco_sim_launch.py']),
+        ('share/' + package_name + '/launch', ['launch/front_left_leg_launch.py']),
         ('share/' + package_name + '/models', ['models/spot_micro_sim.xml']),
     ],
     install_requires=['setuptools'],
@@ -23,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mujoco_sim_node = spot_micro_mujoco_sim.mujoco_sim_node:main',
+            'front_left_motion_controller = spot_micro_mujoco_sim.front_left_motion_controller:main',
         ],
     },
 )

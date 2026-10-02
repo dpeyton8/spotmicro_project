@@ -72,7 +72,13 @@ projects/one_leg/
 |   `-- right_leg_test_rig.xml
 |-- firmware/
 |   |-- README.md
-|   `-- one_leg_servo_test.ino
+|   |-- one_left_leg_servo_test.ino
+|   |-- one_left_leg_angle_control/
+|   |   `-- one_left_leg_angle_control.ino
+|   |-- esp32_one_left_leg/
+|   |   `-- esp32_one_left_leg.ino
+|   `-- one_right_leg_angle_control/
+|       `-- one_right_leg_angle_control.ino
 `-- outputs/                 # generated CSV logs; ignored by Git
 ```
 
@@ -121,6 +127,38 @@ python projects/one_leg/run_stance_control.py \
 
 The script exits nonzero if the final report violates its broad smoke-test
 limits. Those limits are not acceptance criteria for hardware.
+
+## ROS 2 Full-Robot, Front-Left-Only Demo
+
+The full SpotMicro model stays visible in MuJoCo and RViz, while only its
+front-left leg receives motion commands. The other three legs are held at
+their neutral joint angles. `walk` is an in-place stepping cycle; `sit` folds
+the front-left leg and `stand` extends it. These are one-leg demo poses, not a
+full-body gait or physical ESP32 control.
+
+Build and launch it from the Ubuntu workspace:
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+colcon build --packages-select spot_micro_mujoco_sim --symlink-install
+source install/setup.bash
+ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py use_mujoco_viewer:=true
+```
+
+In another sourced terminal, publish a command to move the front-left leg:
+
+```bash
+ros2 topic pub --once /front_left_leg/command std_msgs/msg/String "{data: walk}"
+ros2 topic pub --once /front_left_leg/command std_msgs/msg/String "{data: sit}"
+ros2 topic pub --once /front_left_leg/command std_msgs/msg/String "{data: stand}"
+ros2 topic pub --once /front_left_leg/command std_msgs/msg/String "{data: stop}"
+```
+
+For direct joint targets, publish a `sensor_msgs/msg/JointState` to
+`/front_left_leg/joint_targets`; positions are in radians and use the joint
+names `front_left_shoulder`, `front_left_leg`, and `front_left_foot`.
 
 ## Controls milestones
 

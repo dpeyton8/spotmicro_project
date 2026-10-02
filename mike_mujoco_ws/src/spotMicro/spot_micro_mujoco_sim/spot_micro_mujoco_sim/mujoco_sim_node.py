@@ -19,6 +19,13 @@ from sensor_msgs.msg import JointState
 from tf2_ros import TransformBroadcaster
 
 
+FRONT_LEFT_JOINTS = (
+    "front_left_shoulder",
+    "front_left_leg",
+    "front_left_foot",
+)
+
+
 class SpotMicroMujocoSim(Node):
     """ROS2 node that bridges SpotMicro servo commands to MuJoCo simulation."""
 
@@ -79,6 +86,7 @@ class SpotMicroMujocoSim(Node):
         self.declare_parameter("initial_body_z", 0.25)
         self.declare_parameter("initial_body_quat", [1.0, 0.0, 0.0, 0.0])
         self.declare_parameter("use_mujoco_viewer", False)
+        self.declare_parameter("front_left_only_mode", False)
 
         # Video recording parameters
         self.declare_parameter("record_video", False)
@@ -179,6 +187,8 @@ class SpotMicroMujocoSim(Node):
 
         # Servo state
         self.servo_commands: Dict[int, float] = {}  # servo_num -> proportional value
+        self.front_left_only_mode = self.get_parameter("front_left_only_mode").value
+        self.front_left_joint_targets = {name: 0.0 for name in FRONT_LEFT_JOINTS}
         self.servo_config: Dict[str, Dict] = {}
         self.servo_config_received = False
 
@@ -219,6 +229,12 @@ class SpotMicroMujocoSim(Node):
         self.servos_absolute_sub = self.create_subscription(
             ServoArray, "servos_absolute", self._servos_absolute_callback, 10
         )
+        self.front_left_joint_targets_sub = self.create_subscription(
+            JointState,
+            "/front_left_leg/joint_targets",
+            self._front_left_joint_targets_callback,
+            10,
+        )
         self.joint_state_pub = self.create_publisher(JointState, "joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -226,7 +242,8 @@ class SpotMicroMujocoSim(Node):
         self.sim_timer = self.create_timer(self.sim_dt, self._sim_step)
         self.pub_timer = self.create_timer(self.publish_dt, self._publish_state)
 
-        self.get_logger().info("SpotMicro MuJoCo simulation node started")
+        mode = "front-left-only" if self.front_left_only_mode else "full-robot"
+        self.get_logger().info(f"SpotMicro MuJoCo simulation node started ({mode} control)")
 
     def _reset_simulation(self):
         """Reset simulation to default pose."""
@@ -306,6 +323,27 @@ class SpotMicroMujocoSim(Node):
         """Handle incoming servo absolute commands (idle state sends all zeros = off)."""
         pass
 
+    def _front_left_joint_targets_callback(self, msg: JointState):
+        if len(msg.name) != len(msg.position) or not msg.name:
+            self.get_logger().warning("Joint targets need matching name and position arrays")
+            return
+        if any(name not in FRONT_LEFT_JOINTS for name in msg.name):
+            self.get_logger().warning("Only front_left_shoulder, front_left_leg, and front_left_foot are accepted")
+            return
+        if not all(math.isfinite(position) for position in msg.position):
+            self.get_logger().warning("Joint targets must be finite radians")
+            return
+
+        for name, position in zip(msg.name, msg.position):
+            actuator_name = f"{name}_actuator"
+            actuator_id = self.actuator_ids.get(actuator_name)
+            if actuator_id is None:
+                continue
+            if self.model.actuator_ctrllimited[actuator_id]:
+                lower, upper = self.model.actuator_ctrlrange[actuator_id]
+                position = min(max(position, lower), upper)
+            self.front_left_joint_targets[name] = position
+
     def _proportional_to_joint_angle(self, servo_name: str, proportional: float) -> float:
         """Convert proportional servo command to URDF joint angle in radians."""
         cfg = self._get_servo_cfg(servo_name)
@@ -376,19 +414,28 @@ class SpotMicroMujocoSim(Node):
         if self._step_count % 500 == 0:
             self.get_logger().debug(f"Step {self._step_count}: body_z={self.data.qpos[2]:.3f}")
 
-        # Apply servo commands to actuators
-        for servo_name, joint_name in self.SERVO_TO_JOINT.items():
-            cfg = self._get_servo_cfg(servo_name)
-            if not cfg:
-                continue
-            servo_num = cfg["num"]
-            proportional = self.servo_commands.get(servo_num, 0.0)
-            target_angle = self._proportional_to_joint_angle(servo_name, proportional)
+        if self.front_left_only_mode:
+            for joint_name in self.SERVO_TO_JOINT.values():
+                actuator_id = self.actuator_ids.get(f"{joint_name}_actuator")
+                if actuator_id is None:
+                    continue
+                self.data.ctrl[actuator_id] = self.front_left_joint_targets.get(
+                    joint_name, 0.0
+                )
+        else:
+            # Apply servo commands to actuators
+            for servo_name, joint_name in self.SERVO_TO_JOINT.items():
+                cfg = self._get_servo_cfg(servo_name)
+                if not cfg:
+                    continue
+                servo_num = cfg["num"]
+                proportional = self.servo_commands.get(servo_num, 0.0)
+                target_angle = self._proportional_to_joint_angle(servo_name, proportional)
 
-            actuator_name = f"{joint_name}_actuator"
-            if actuator_name in self.actuator_ids:
-                act_id = self.actuator_ids[actuator_name]
-                self.data.ctrl[act_id] = target_angle
+                actuator_name = f"{joint_name}_actuator"
+                if actuator_name in self.actuator_ids:
+                    act_id = self.actuator_ids[actuator_name]
+                    self.data.ctrl[act_id] = target_angle
 
         # Step physics
         mujoco.mj_step(self.model, self.data)
