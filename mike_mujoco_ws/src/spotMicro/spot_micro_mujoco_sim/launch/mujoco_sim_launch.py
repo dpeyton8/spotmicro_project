@@ -56,7 +56,7 @@ def generate_launch_description():
                 "model_path": LaunchConfiguration("model_path"),
                 "sim_rate_hz": 500.0,
                 "publish_rate_hz": 50.0,
-                "initial_body_z": 0.25,
+                "initial_body_z": 0.105,
                 "use_mujoco_viewer": LaunchConfiguration("use_mujoco_viewer"),
             }],
         ),

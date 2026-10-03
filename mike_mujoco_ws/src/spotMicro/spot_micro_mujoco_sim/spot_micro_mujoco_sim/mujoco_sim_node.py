@@ -5,6 +5,7 @@ import math
 import os
 import shutil
 import subprocess
+import time
 from typing import Dict, Optional
 
 import mujoco
@@ -59,14 +60,21 @@ class SpotMicroMujocoSim(Node):
         "LB_3": "rear_left_foot",
     }
 
-    # Default pose angles (all zero) — matches the MuJoCo model's default
-    # configuration where legs hang straight down.
+    # Default pose (URDF joint angles, degrees): the lie-down pose that
+    # spot_micro_motion_cmd starts in (lie_down_height and
+    # lie_down_foot_x_offset in spot_micro_motion_cmd.yaml).  Joints are held
+    # here until the first servo command arrives, so the first stand
+    # transition starts from the pose the motion controller expects.
     DEFAULT_ANGLES_DEG: Dict[str, float] = {
-        "RF_1": 0.0, "RF_2": 0.0, "RF_3": 0.0,
-        "RB_1": 0.0, "RB_2": 0.0, "RB_3": 0.0,
-        "LF_1": 0.0, "LF_2": 0.0, "LF_3": 0.0,
-        "LB_1": 0.0, "LB_2": 0.0, "LB_3": 0.0,
+        "RF_1": 0.0, "RF_2": 37.5, "RF_3": -128.1,
+        "RB_1": 0.0, "RB_2": 37.5, "RB_3": -128.1,
+        "LF_1": 0.0, "LF_2": 37.5, "LF_3": -128.1,
+        "LB_1": 0.0, "LB_2": 37.5, "LB_3": -128.1,
     }
+
+    # Upper bound on physics steps per timer callback when catching up with
+    # wall-clock time (0.1 s at the default 500 Hz).
+    MAX_CATCHUP_STEPS = 50
 
     def __init__(self):
         super().__init__("spot_micro_mujoco_sim")
@@ -76,7 +84,7 @@ class SpotMicroMujocoSim(Node):
         self.declare_parameter("servo_max_angle_deg", 82.5)
         self.declare_parameter("sim_rate_hz", 500.0)
         self.declare_parameter("publish_rate_hz", 50.0)
-        self.declare_parameter("initial_body_z", 0.25)
+        self.declare_parameter("initial_body_z", 0.105)
         self.declare_parameter("initial_body_quat", [1.0, 0.0, 0.0, 0.0])
         self.declare_parameter("use_mujoco_viewer", False)
 
@@ -189,6 +197,7 @@ class SpotMicroMujocoSim(Node):
         self.sim_dt = 1.0 / self.get_parameter("sim_rate_hz").value
         self.publish_dt = 1.0 / self.get_parameter("publish_rate_hz").value
         self.model.opt.timestep = self.sim_dt
+        self._wall_start: Optional[float] = None
 
         # Initialize simulation pose
         self._reset_simulation()
@@ -239,21 +248,21 @@ class SpotMicroMujocoSim(Node):
         self.data.qpos[0:3] = [0.0, 0.0, initial_z]
         self.data.qpos[3:7] = initial_quat
 
-        # Set initial joint angles to default (all zero)
+        # Set initial joint angles to the default (lie-down) pose
         for servo_name, joint_name in self.SERVO_TO_JOINT.items():
             if joint_name not in self.joint_ids:
                 continue
             qpos_adr = self.joint_qposadr[joint_name]
-            self.data.qpos[qpos_adr] = 0.0
+            self.data.qpos[qpos_adr] = math.radians(self.DEFAULT_ANGLES_DEG[servo_name])
 
-        # Set actuators to hold initial pose (all zero)
+        # Set actuators to hold the initial pose
         for servo_name, joint_name in self.SERVO_TO_JOINT.items():
             if joint_name not in self.joint_ids:
                 continue
             actuator_name = f"{joint_name}_actuator"
             if actuator_name in self.actuator_ids:
                 act_id = self.actuator_ids[actuator_name]
-                self.data.ctrl[act_id] = 0.0
+                self.data.ctrl[act_id] = math.radians(self.DEFAULT_ANGLES_DEG[servo_name])
 
         # Forward kinematics to initialize all derived quantities
         mujoco.mj_forward(self.model, self.data)
@@ -382,16 +391,35 @@ class SpotMicroMujocoSim(Node):
             if not cfg:
                 continue
             servo_num = cfg["num"]
-            proportional = self.servo_commands.get(servo_num, 0.0)
-            target_angle = self._proportional_to_joint_angle(servo_name, proportional)
+            if servo_num in self.servo_commands:
+                target_angle = self._proportional_to_joint_angle(
+                    servo_name, self.servo_commands[servo_num]
+                )
+            else:
+                # No command yet: keep holding the initial pose.
+                target_angle = math.radians(self.DEFAULT_ANGLES_DEG[servo_name])
 
             actuator_name = f"{joint_name}_actuator"
             if actuator_name in self.actuator_ids:
                 act_id = self.actuator_ids[actuator_name]
                 self.data.ctrl[act_id] = target_angle
 
-        # Step physics
-        mujoco.mj_step(self.model, self.data)
+        # Step physics until simulation time catches up with wall-clock time.
+        # The timer callback cannot be relied on to fire at sim_rate_hz on a
+        # loaded machine (especially with the viewer in the same loop), and a
+        # single mj_step per callback lets the simulation fall behind the
+        # motion controller, which makes transitions jerky.
+        now = time.monotonic()
+        if self._wall_start is None:
+            self._wall_start = now - self.data.time
+        steps = 0
+        while self.data.time < now - self._wall_start and steps < self.MAX_CATCHUP_STEPS:
+            mujoco.mj_step(self.model, self.data)
+            steps += 1
+        if steps == self.MAX_CATCHUP_STEPS:
+            # After a long stall (e.g. a paused viewer), drop the backlog
+            # instead of fast-forwarding through it.
+            self._wall_start = now - self.data.time
 
     def _publish_state(self):
         """Publish joint states and TF transforms."""
