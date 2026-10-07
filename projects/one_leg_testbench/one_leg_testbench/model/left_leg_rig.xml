@@ -1,0 +1,43 @@
+<mujoco model="one_leg_testbench_front_left">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <default>
+    <joint damping="0.12" armature="0.002"/>
+    <geom friction="1.0 0.02 0.002" condim="4"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="1 1 0.1" rgba="0.55 0.57 0.6 1"/>
+
+    <!-- Rigid mount standing in for the gantry; the script moves it to lower the leg or disturb it. -->
+    <body name="mount" mocap="true" pos="0 0 0.25">
+      <geom name="mount_geom" type="box" size="0.05 0.04 0.02" contype="0" conaffinity="0" rgba="0.2 0.2 0.25 1"/>
+
+      <body name="front_left_shoulder_link">
+        <joint name="front_left_shoulder" axis="1 0 0" range="-0.548 0.548"/>
+        <geom type="capsule" fromto="0 0 0 0 0.055 0" size="0.016" mass="0.12" rgba="0.9 0.72 0.05 1"/>
+
+        <body name="front_left_leg_link" pos="0 0.055 0">
+          <joint name="front_left_leg" axis="0 1 0" range="-2.666 1.548"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.1075" size="0.014" mass="0.18" rgba="0.1 0.65 0.75 1"/>
+
+          <body name="front_left_foot_link" pos="0 0 -0.1075">
+            <joint name="front_left_foot" axis="0 1 0" range="-2.6 0.1"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.130" size="0.012" mass="0.16" rgba="0.12 0.3 0.85 1"/>
+            <geom name="left_toe" type="sphere" pos="0 0 -0.130" size="0.018" mass="0.035" rgba="0.18 0.18 0.18 1"/>
+            <site name="toe_site" pos="0 0 -0.130" size="0.006" rgba="1 0.15 0.15 1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- Position servos approximate hobby-servo behavior; ctrl is the joint angle in radians. -->
+  <actuator>
+    <position name="front_left_shoulder_actuator" joint="front_left_shoulder" kp="45" kv="3.5" ctrlrange="-0.548 0.548" forcerange="-3.0 3.0"/>
+    <position name="front_left_leg_actuator" joint="front_left_leg" kp="55" kv="4.0" ctrlrange="-2.666 1.548" forcerange="-4.0 4.0"/>
+    <position name="front_left_foot_actuator" joint="front_left_foot" kp="45" kv="3.5" ctrlrange="-2.6 0.1" forcerange="-3.5 3.5"/>
+  </actuator>
+</mujoco>

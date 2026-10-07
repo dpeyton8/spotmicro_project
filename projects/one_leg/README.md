@@ -4,6 +4,10 @@ This project is a small, safe bridge between the repository's inverse-
 kinematics work, a MuJoCo contact simulation, and a later physical right-leg
 bench test using an ESP32, PCA9685, and three servos.
 
+> The paper-confirmation testbench (left-front leg, MuJoCo + ROS 2) lives in
+> [`../one_leg_testbench`](../one_leg_testbench/README.md). This folder is the
+> earlier hardware bring-up work and holds the confirmed firmware it must match.
+
 ## Experiment
 
 The simulated right leg is mounted to a constrained test carriage. The
