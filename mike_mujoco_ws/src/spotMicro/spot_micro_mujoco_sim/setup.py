@@ -13,6 +13,7 @@ setup(
         ('share/' + package_name + '/launch', ['launch/mujoco_sim_launch.py']),
         ('share/' + package_name + '/launch', ['launch/front_left_leg_launch.py']),
         ('share/' + package_name + '/models', ['models/spot_micro_sim.xml']),
+        ('share/' + package_name + '/rviz', ['rviz/front_left_testbench.rviz']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

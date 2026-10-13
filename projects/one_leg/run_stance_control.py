@@ -206,9 +206,9 @@ def main() -> int:
 
     viewer_context = None
     if args.viewer:
-        import mujoco.viewer
+        from mujoco import viewer
 
-        viewer_context = mujoco.viewer.launch_passive(model, data)
+        viewer_context = viewer.launch_passive(model, data)
         viewer_context.cam.lookat[:] = [0.0, -0.03, 0.12]
         viewer_context.cam.distance = 0.75
         viewer_context.cam.azimuth = 145

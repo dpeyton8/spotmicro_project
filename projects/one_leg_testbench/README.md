@@ -36,12 +36,85 @@ cd projects/one_leg_testbench
 `plan` prints lines that can be pasted into the sketch's Serial Monitor, followed by the PWM
 values `leg.firmware_pwm()` predicts, so they can be compared with the sketch's own output.
 
-ROS 2 (sim node running with `front_left_only_mode:=true`):
+### MuJoCo testbench motion in Cometyang RViz
+
+This runs physics and the suspended LF leg from `one_leg_testbench.sim`, while RViz displays the
+matching full Cometyang robot. The other nine joints are published at zero. It does not run the
+full-robot MuJoCo physics node. In ROS mode it starts in the stand pose and accepts the usual
+Cometyang Bool commands: `/stand_cmd`, `/idle_cmd` (sit), and `/walk_cmd`.
+
+For sit/stand, the testbench applies the Cometyang rate-limited first-order transition to a single
+fixture mount and solves LF IK at each update while holding the LF toe at its initial world point.
+The mount targets are `(0, 0, 0.173 m)` for stand and `(-0.050, 0, 0.101 m)` for sit: these use
+the Cometyang 0.155/0.083 m body heights plus the testbench toe radius. This is a one-leg planted-
+toe demonstration, not four-foot CoM stability or a full-body physics simulation.
+
+In Terminal 1, start the suspended-leg MuJoCo viewer and Cometyang RViz together. `run_testbench`
+automatically disables the full-robot simulator and preset LF controller, and uses a world-fixed
+RViz view so the base-height transition is visible:
 
 ```bash
-python3 -m one_leg_testbench.ros_node
-ros2 topic pub --once /one_leg_testbench/command std_msgs/String "{data: walk}"
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+colcon build --packages-select spot_micro_mujoco_sim --symlink-install
+source install/setup.bash
+ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py \
+  run_testbench:=true
 ```
+
+In Terminal 2, send one command at a time. `idle` is the sit pose; sending stand or idle exits
+the walk cycle. Walk can be entered from stand; return to stand before starting it from sit:
+
+```bash
+ros2 topic pub --once /stand_cmd std_msgs/msg/Bool "{data: true}"
+ros2 topic pub --once /idle_cmd std_msgs/msg/Bool "{data: true}"
+ros2 topic pub --once /walk_cmd std_msgs/msg/Bool "{data: true}"
+```
+
+Do not start `one_leg_testbench.ros_node` in this mode; it is a separate gait publisher.
+
+### Alternative: Paper Gait on Cometyang MuJoCo
+
+This alternative uses the Cometyang MuJoCo physics model and RViz; it does not run the suspended
+`one_leg_testbench.sim` rig. Start `front_left_leg_launch.py` with `use_mujoco_sim:=true` and
+`start_builtin_front_left_controller:=false`, then run `one_leg_testbench.ros_node` and publish
+`walk`/`stop` on `/one_leg_testbench/command`:
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+colcon build --packages-select spot_micro_mujoco_sim --symlink-install
+source install/setup.bash
+export PYTHONPATH="$PWD/.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
+ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py \
+	use_mujoco_viewer:=true start_builtin_front_left_controller:=false
+```
+
+In another sourced terminal, run the paper-gait node from this project:
+
+```bash
+cd ~/Documents/spotmicro_project
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+source mike_mujoco_ws/.venv/bin/activate
+source mike_mujoco_ws/install/setup.bash
+export PYTHONPATH="$PWD/projects/one_leg_testbench:$PWD/mike_mujoco_ws/.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
+python -m one_leg_testbench.ros_node
+```
+
+In a third sourced terminal, command the paper gait:
+
+```bash
+ros2 topic pub --once /one_leg_testbench/command std_msgs/String "{data: walk}"
+ros2 topic pub --once /one_leg_testbench/command std_msgs/String "{data: stop}"
+```
+
+The standalone `one_leg_testbench.sim` and `one_leg_testbench.poses` modes use the suspended
+fixed-mount leg rig in `one_leg_testbench/model/left_leg_rig.xml`.
 
 ## Limits
 
