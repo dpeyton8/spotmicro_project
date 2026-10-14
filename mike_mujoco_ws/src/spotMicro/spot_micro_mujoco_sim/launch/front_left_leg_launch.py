@@ -48,6 +48,16 @@ def generate_launch_description():
             default_value="false",
             description="Run the suspended one-leg testbench and publish its joint states to RViz",
         ),
+        DeclareLaunchArgument(
+            "sitstand_method",
+            default_value="repo",
+            description="One-leg sit/stand mathematics: repo or hao",
+        ),
+        DeclareLaunchArgument(
+            "walk_method",
+            default_value="zhang",
+            description="One-leg walk mathematics: repo or zhang",
+        ),
         Node(
             condition=IfCondition(PythonExpression([
                 "'", LaunchConfiguration("run_testbench"), "' != 'true'",
@@ -78,7 +88,11 @@ def generate_launch_description():
         ),
         ExecuteProcess(
             condition=IfCondition(LaunchConfiguration("run_testbench")),
-            cmd=["python3", "-m", "one_leg_testbench.sim", "--viewer", "--ros"],
+            cmd=[
+                "python3", "-m", "one_leg_testbench.sim", "--viewer", "--ros",
+                "--sitstand-method", LaunchConfiguration("sitstand_method"),
+                "--walk-method", LaunchConfiguration("walk_method"),
+            ],
             cwd=str(testbench_dir),
             output="screen",
             additional_env={

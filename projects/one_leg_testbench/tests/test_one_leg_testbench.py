@@ -8,6 +8,7 @@ import numpy as np
 from one_leg_testbench import leg, plan
 from one_leg_testbench.sim import run, summarize
 from one_leg_testbench.trajectory import SWING_POINTS_MM, Gait, bezier
+from one_leg_testbench.tracks import RepoGait, hao_mount, hao_progress
 
 try:
     import mujoco
@@ -93,6 +94,39 @@ class PaperTrajectory(unittest.TestCase):
             plan.check_path(Gait(hip_height=0.5))
 
 
+class TrackComparison(unittest.TestCase):
+    def test_hao_cycloid_has_exact_endpoints_and_midpoint(self):
+        self.assertEqual(hao_progress(-1.0, 2.0), 0.0)
+        self.assertAlmostEqual(hao_progress(1.0, 2.0), 0.5)
+        self.assertEqual(hao_progress(3.0, 2.0), 1.0)
+        start = np.array([0.0, 0.0, 0.173])
+        target = np.array([-0.05, 0.0, 0.101])
+        np.testing.assert_allclose(hao_mount(start, target, 0.0, 2.0), start)
+        np.testing.assert_allclose(hao_mount(start, target, 2.0, 2.0), target)
+
+    def test_repo_walk_uses_linear_stance_and_triangular_swing(self):
+        gait = RepoGait()
+        start, phase = gait.foot_position(0.0)
+        stance_end, _ = gait.foot_position(gait.stance_seconds - 1e-9)
+        apex, phase_apex = gait.foot_position(gait.stance_seconds + gait.swing_seconds / 2)
+        cycle_end, _ = gait.foot_position(gait.cycle_seconds - 1e-9)
+        self.assertEqual(phase, "stance")
+        self.assertEqual(phase_apex, "swing")
+        self.assertGreater(start[0], stance_end[0])
+        self.assertAlmostEqual(apex[2], -gait.hip_height + gait.clearance)
+        np.testing.assert_allclose(cycle_end, start, atol=1e-8)
+
+    def test_repo_walk_uses_same_ik_and_stays_inside_limits(self):
+        gait = RepoGait()
+        plan.check_path(gait)
+        for t in np.arange(0.0, gait.cycle_seconds, 0.01):
+            q, point, _ = plan.joint_targets(gait, float(t))
+            self.assertFalse(leg.violated_joints(q))
+            np.testing.assert_allclose(
+                leg.mujoco_from_kinematic(leg.forward(q)), point, atol=1e-9
+            )
+
+
 class FirmwareParity(unittest.TestCase):
     INO = Path(__file__).resolve().parents[2] / "one_leg/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino"
 
@@ -143,6 +177,14 @@ class MujocoSimulation(unittest.TestCase):
         self.assertLess(stats["swing_contact_fraction"], 0.2)
         self.assertGreater(stats["max_toe_clearance_swing_mm"], 15.0)
         self.assertGreater(stats["peak_normal_force_n"], 1.0)
+
+    def test_repo_walk_also_runs_through_mujoco(self):
+        gait = RepoGait()
+        rows, _, settle = run(gait, drop=0.06, lower_seconds=2.0, hold_seconds=0.5, cycles=1.0, viewer=False)
+        stats = summarize(rows, settle)
+        self.assertTrue(all(np.isfinite(r["tracking_error_m"]) for r in rows))
+        self.assertGreater(stats["stance_contact_fraction"], 0.8)
+        self.assertGreater(stats["max_toe_clearance_swing_mm"], 15.0)
 
 
 if __name__ == "__main__":

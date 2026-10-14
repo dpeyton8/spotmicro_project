@@ -73,7 +73,69 @@ ros2 topic pub --once /idle_cmd std_msgs/msg/Bool "{data: true}"
 ros2 topic pub --once /walk_cmd std_msgs/msg/Bool "{data: true}"
 ```
 
+To alternate continuously between sit and stand using the selected sit/stand mathematics:
+
+```bash
+ros2 topic pub --once /sitstand_cycle_cmd std_msgs/msg/Bool "{data: true}"
+```
+
+The cycle runs until `/stand_cmd`, `/idle_cmd`, or `/walk_cmd` receives `true`. It can also be
+stopped and returned to stand with:
+
+```bash
+ros2 topic pub --once /sitstand_cycle_cmd std_msgs/msg/Bool "{data: false}"
+```
+
 Do not start `one_leg_testbench.ros_node` in this mode; it is a separate gait publisher.
+
+#### Two-track mathematics comparison
+
+The integrated testbench can now hold the SpotMicro model, IK, actuator gains, endpoints, and
+logging constant while selecting the trajectory mathematics independently:
+
+| Motion | `repo` | Article method |
+|---|---|---|
+| Sit/stand | Cometyang rate-limited first-order filter | `hao`: Hao et al. Eq. 9 cycloid |
+| Walk | Cometyang/Mike linear stance + triangular swing clearance | `zhang`: Zhang et al. Eq. 18 Bezier swing + Eq. 19 stance |
+
+Select the initial methods when launching (defaults shown):
+
+```bash
+ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py \
+  run_testbench:=true sitstand_method:=repo walk_method:=zhang
+```
+
+They can also be changed while the testbench is running:
+
+```bash
+ros2 topic pub --once /one_leg_testbench/sitstand_math std_msgs/msg/String "{data: repo}"
+ros2 topic pub --once /one_leg_testbench/sitstand_math std_msgs/msg/String "{data: hao}"
+ros2 topic pub --once /one_leg_testbench/walk_math std_msgs/msg/String "{data: repo}"
+ros2 topic pub --once /one_leg_testbench/walk_math std_msgs/msg/String "{data: zhang}"
+```
+
+After selecting a method, issue the usual `/stand_cmd`, `/idle_cmd`, or `/walk_cmd`. Sit/stand
+uses identical stand and sit mount targets in both methods, holds the same toe world point, and
+uses the same LF IK. Walk uses the same approximate stride, phase durations, IK, MuJoCo model,
+and actuators. The repo mode isolates the LF portion of the eight-phase gait; it does not claim
+to reproduce the missing three-leg support polygon on the one-leg fixture.
+
+Run a headless comparison to produce CSV logs, metrics, and presentation-ready PNG plots:
+
+```bash
+cd ~/Documents/spotmicro_project/projects/one_leg_testbench
+../../mike_mujoco_ws/.venv/bin/python -m one_leg_testbench.compare --cycles 2
+```
+
+Outputs are written to `outputs/two_track_comparison/`:
+
+- `sitstand_comparison.csv` and `sitstand_mount_height.png`
+- `walk_comparison.csv` and `walk_trajectory_comparison.png`
+- `summary.txt`
+
+The walk CSV includes desired and simulated toe position, commanded and simulated `q1/q2/q3`,
+joint velocity, phase, contact, normal force, tracking error, and joint-limit margin. These are
+simulation results, not physical-leg results.
 
 ### Alternative: Paper Gait on Cometyang MuJoCo
 

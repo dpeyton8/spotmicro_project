@@ -16,6 +16,7 @@ import numpy as np
 from . import leg
 from .plan import PathError, joint_targets
 from .trajectory import Gait
+from .tracks import hao_mount, walk_gait
 
 MODEL = Path(__file__).resolve().parent / "model" / "left_leg_rig.xml"
 COMETYANG_JOINT_NAMES = (
@@ -32,6 +33,7 @@ COMETYANG_LF_HIP_X = 0.093
 COMETYANG_LF_HIP_Y = 0.039
 COMETYANG_STAND_MOUNT = np.array([0.0, 0.0, 0.155 + leg.TOE_RADIUS])
 COMETYANG_SIT_MOUNT = np.array([-0.050, 0.0, 0.083 + leg.TOE_RADIUS])
+HAO_TRANSITION_SECONDS = 2.0
 
 
 def rate_limited_transition_step(current, target):
@@ -41,12 +43,12 @@ def rate_limited_transition_step(current, target):
 
 
 class RosJointStatePublisher:
-    def __init__(self):
+    def __init__(self, sitstand_method="repo", walk_method="zhang"):
         import rclpy
         from rclpy.node import Node
         from geometry_msgs.msg import TransformStamped
         from sensor_msgs.msg import JointState
-        from std_msgs.msg import Bool
+        from std_msgs.msg import Bool, String
         from tf2_ros import TransformBroadcaster
 
         self.rclpy = rclpy
@@ -59,9 +61,14 @@ class RosJointStatePublisher:
         self.node.create_subscription(Bool, "/stand_cmd", self._stand, 10)
         self.node.create_subscription(Bool, "/idle_cmd", self._sit, 10)
         self.node.create_subscription(Bool, "/walk_cmd", self._walk, 10)
+        self.node.create_subscription(Bool, "/sitstand_cycle_cmd", self._cycle, 10)
+        self.node.create_subscription(String, "/one_leg_testbench/sitstand_math", self._sitstand_math, 10)
+        self.node.create_subscription(String, "/one_leg_testbench/walk_math", self._walk_math, 10)
         self.joint_state_type = JointState
         self.joint_indices = {name: index for index, name in enumerate(COMETYANG_JOINT_NAMES)}
         self.mode = "stand"
+        self.sitstand_method = sitstand_method
+        self.walk_method = walk_method
 
     def _set_mode(self, mode):
         self.mode = mode
@@ -77,6 +84,28 @@ class RosJointStatePublisher:
     def _walk(self, message):
         if message.data:
             self._set_mode("walk")
+
+    def _cycle(self, message):
+        if message.data:
+            self._set_mode("cycle")
+        elif self.mode == "cycle":
+            self._set_mode("stand")
+
+    def _sitstand_math(self, message):
+        method = message.data.strip().lower()
+        if method in ("repo", "hao"):
+            self.sitstand_method = method
+            self.node.get_logger().info(f"Sit/stand mathematics: {method}")
+        else:
+            self.node.get_logger().warning("Sit/stand mathematics must be repo or hao")
+
+    def _walk_math(self, message):
+        method = message.data.strip().lower()
+        if method in ("repo", "zhang"):
+            self.walk_method = method
+            self.node.get_logger().info(f"Walk mathematics: {method}")
+        else:
+            self.node.get_logger().warning("Walk mathematics must be repo or zhang")
 
     def spin_once(self):
         self.rclpy.spin_once(self.node, timeout_sec=0.0)
@@ -172,6 +201,10 @@ def run(
     ros_q = q0.copy()
     ros_point = leg.forward(q0)
     ros_phase = "stand"
+    previous_ros_mode = ros_publisher.mode if ros_publisher is not None else None
+    transition_start_time = 0.0
+    transition_start_mount = mount_position.copy()
+    cycle_target = "sit"
     try:
         while ros_publisher is not None or data.time < total:
             if handle is not None and not handle.is_running():
@@ -183,8 +216,19 @@ def run(
             else:
                 ros_publisher.spin_once()
                 if data.time >= next_ros_control:
+                    if ros_publisher.mode != previous_ros_mode:
+                        transition_start_time = data.time
+                        transition_start_mount = mount_position.copy()
+                        previous_ros_mode = ros_publisher.mode
+                        if ros_publisher.mode == "cycle":
+                            cycle_target = "sit"
                     if ros_publisher.mode == "walk":
                         mount_target = COMETYANG_STAND_MOUNT
+                    elif ros_publisher.mode == "cycle":
+                        mount_target = (
+                            COMETYANG_SIT_MOUNT if cycle_target == "sit"
+                            else COMETYANG_STAND_MOUNT
+                        )
                     elif ros_publisher.mode == "sit":
                         mount_target = COMETYANG_SIT_MOUNT
                         walk_started = False
@@ -192,7 +236,22 @@ def run(
                         mount_target = COMETYANG_STAND_MOUNT
                         walk_started = False
 
-                    mount_position = rate_limited_transition_step(mount_position, mount_target)
+                    if ros_publisher.sitstand_method == "hao":
+                        mount_position = hao_mount(
+                            transition_start_mount,
+                            mount_target,
+                            data.time - transition_start_time,
+                            HAO_TRANSITION_SECONDS,
+                        )
+                    else:
+                        mount_position = rate_limited_transition_step(mount_position, mount_target)
+
+                    if ros_publisher.mode == "cycle" and np.allclose(
+                        mount_position, mount_target, atol=0.001
+                    ):
+                        cycle_target = "stand" if cycle_target == "sit" else "sit"
+                        transition_start_time = data.time
+                        transition_start_mount = mount_position.copy()
                     data.mocap_pos[0] = mount_position
                     mount_z = float(mount_position[2])
 
@@ -202,7 +261,8 @@ def run(
                         if not walk_started:
                             walk_started = True
                             walk_start_time = data.time
-                        q, point, phase = joint_targets(gait, data.time - walk_start_time)
+                        selected_gait = walk_gait(ros_publisher.walk_method, gait)
+                        q, point, phase = joint_targets(selected_gait, data.time - walk_start_time)
                         ros_q, ros_point, ros_phase = q, point, phase
                     else:
                         local_foot = leg.kinematic_from_mujoco(
@@ -212,7 +272,10 @@ def run(
                         if q is None or leg.violated_joints(q):
                             raise RuntimeError("Cometyang sit/stand target left the LF IK workspace")
                         ros_q, ros_point = q, local_foot
-                        ros_phase = ros_publisher.mode
+                        ros_phase = (
+                            f"cycle_{cycle_target}" if ros_publisher.mode == "cycle"
+                            else ros_publisher.mode
+                        )
                     next_ros_control = data.time + COMETYANG_TRANSIT_DT
                 else:
                     mount_z = float(mount_position[2])
@@ -227,16 +290,25 @@ def run(
 
             toe_rel = data.site_xpos[site] - data.mocap_pos[0]
             touching, force = contact_force(model, data, toe, floor)
+            actual_q = leg.from_ros(data.qpos[:3])
+            actual_qvel = leg.from_ros(data.qvel[:3])
+            limit_margin = np.min(
+                np.minimum(q - leg.LIMITS_RAD[:, 0], leg.LIMITS_RAD[:, 1] - q)
+            )
             rows.append(
                 dict(
                     time_s=data.time, phase=phase if data.time > hold_seconds + lower_seconds else "lowering",
+                    sitstand_method=(ros_publisher.sitstand_method if ros_publisher else "standalone"),
+                    walk_method=(ros_publisher.walk_method if ros_publisher else "zhang"),
                     mount_z_m=mount_z, target_x_m=point[0], target_y_m=point[1], target_z_m=point[2],
                     toe_x_m=toe_rel[0], toe_y_m=toe_rel[1], toe_z_m=toe_rel[2],
                     tracking_error_m=float(np.linalg.norm(toe_rel - point)),
+                    joint_limit_margin_rad=float(limit_margin),
                     toe_height_m=float(data.site_xpos[site][2]) - leg.TOE_RADIUS,
                     in_contact=int(touching), normal_force_n=force,
                     **{f"q{i + 1}_cmd_rad": float(q[i]) for i in range(3)},
-                    **{f"q{i + 1}_rad": float(leg.from_ros(data.qpos[:3])[i]) for i in range(3)},
+                    **{f"q{i + 1}_rad": float(actual_q[i]) for i in range(3)},
+                    **{f"q{i + 1}_vel_rad_s": float(actual_qvel[i]) for i in range(3)},
                 )
             )
             if handle is not None and data.time >= next_viewer_sync:
@@ -280,11 +352,13 @@ def main() -> int:
     parser.add_argument("--cycles", type=float, default=3.0)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--ros", action="store_true", help="publish Cometyang joint_states for RViz")
+    parser.add_argument("--sitstand-method", choices=("repo", "hao"), default="repo")
+    parser.add_argument("--walk-method", choices=("repo", "zhang"), default="zhang")
     parser.add_argument("--output", type=Path, help="write the per-step log as CSV")
     args = parser.parse_args()
 
     gait = Gait(hip_height=args.hip_height, scale=args.scale, stance_press=args.press)
-    ros_publisher = RosJointStatePublisher() if args.ros else None
+    ros_publisher = RosJointStatePublisher(args.sitstand_method, args.walk_method) if args.ros else None
     try:
         rows, _, settle = run(
             gait, args.drop, args.lower, args.hold, args.cycles, args.viewer, ros_publisher
