@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="460" viewBox="0 0 1600 460">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#243746"/>
+    </marker>
+    <style>
+      .title { font: 700 29px Montserrat, Arial, sans-serif; }
+      .label { font: 700 21px Montserrat, Arial, sans-serif; letter-spacing: .4px; }
+      .math { font: 25px Cambria Math, STIX Two Math, serif; fill: #243746; }
+      .note { font: 18px Montserrat, Arial, sans-serif; fill: #243746; }
+      .small { font: 16px Montserrat, Arial, sans-serif; fill: #465661; }
+    </style>
+  </defs>
+
+  <!-- Transparent technical strip for Slide 4 -->
+  <rect x="18" y="18" width="476" height="360" rx="38" fill="#ffffff" fill-opacity="0.96" stroke="#ba0c2f" stroke-width="3"/>
+  <rect x="562" y="18" width="476" height="360" rx="38" fill="#ffffff" fill-opacity="0.96" stroke="#007681" stroke-width="3"/>
+  <rect x="1106" y="18" width="476" height="360" rx="38" fill="#ffffff" fill-opacity="0.96" stroke="#4b8f74" stroke-width="3"/>
+
+  <text x="256" y="65" text-anchor="middle" class="label" fill="#ba0c2f">ZHANG → SPOTMICRO SCALE</text>
+  <text x="256" y="132" text-anchor="middle" class="math">x<tspan baseline-shift="sub" font-size="17">SM</tspan> = 0.25 x<tspan baseline-shift="sub" font-size="17">paper</tspan></text>
+  <text x="256" y="188" text-anchor="middle" class="math">d<tspan baseline-shift="sub" font-size="17">SM</tspan> = h<tspan baseline-shift="sub" font-size="17">hip</tspan> + 0.25(y<tspan baseline-shift="sub" font-size="17">paper</tspan> − 460 mm)</text>
+  <line x1="114" y1="246" x2="398" y2="246" stroke="#ba0c2f" stroke-width="4"/>
+  <circle cx="114" cy="246" r="8" fill="#ba0c2f"/>
+  <circle cx="398" cy="246" r="8" fill="#ba0c2f"/>
+  <text x="114" y="282" text-anchor="middle" class="note">−42.5 mm</text>
+  <text x="398" y="282" text-anchor="middle" class="note">+42.5 mm</text>
+  <text x="256" y="325" text-anchor="middle" class="note">85 mm between shared endpoints</text>
+  <text x="256" y="352" text-anchor="middle" class="small">Zhang control points scaled to 25%</text>
+
+  <text x="800" y="65" text-anchor="middle" class="label" fill="#007681">NORMALIZED CYCLE TIME</text>
+  <text x="800" y="127" text-anchor="middle" class="math">T = T<tspan baseline-shift="sub" font-size="17">st</tspan> + T<tspan baseline-shift="sub" font-size="17">sw</tspan> = 1.5 + 1.0 = 2.5 s</text>
+  <text x="800" y="190" text-anchor="middle" class="math">S<tspan baseline-shift="sub" font-size="17">st</tspan> = t / 1.5</text>
+  <text x="800" y="244" text-anchor="middle" class="math">S<tspan baseline-shift="sub" font-size="17">sw</tspan> = (t − 1.5) / 1.0</text>
+  <rect x="656" y="294" width="173" height="28" rx="14" fill="#ba0c2f"/>
+  <rect x="829" y="294" width="115" height="28" rx="14" fill="#007681"/>
+  <text x="742" y="351" text-anchor="middle" class="small">STANCE 1.5 s</text>
+  <text x="886" y="351" text-anchor="middle" class="small">SWING 1.0 s</text>
+
+  <text x="1344" y="65" text-anchor="middle" class="label" fill="#4b8f74">SHARED IK PIPELINE</text>
+  <text x="1344" y="128" text-anchor="middle" class="math">p<tspan baseline-shift="sub" font-size="17">f</tspan>(t) → q(t) = IK<tspan baseline-shift="sub" font-size="17">Şen</tspan>(p<tspan baseline-shift="sub" font-size="17">f</tspan>)</text>
+  <text x="1344" y="187" text-anchor="middle" class="math">q = [q₁, q₂, q₃]ᵀ</text>
+  <text x="1344" y="245" text-anchor="middle" class="math">L₁=55, L₂=107.5, L₃=130 mm</text>
+  <path d="M1192 296 H1496" fill="none" stroke="#243746" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1194" y="333" class="small">foot target</text>
+  <text x="1490" y="333" text-anchor="end" class="small">MuJoCo q₁,q₂,q₃</text>
+  <text x="1344" y="358" text-anchor="middle" class="small">Same corrected IK, limits, and actuators</text>
+
+  <path d="M498 198 H554" fill="none" stroke="#243746" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M1042 198 H1098" fill="none" stroke="#243746" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="180" y="404" width="1240" height="42" rx="21" fill="#eef3f3" stroke="#c8d2d4"/>
+  <text x="800" y="432" text-anchor="middle" class="note">Only the trajectory mathematics changes; geometry, timing, IK, limits, and MuJoCo actuators stay fixed.</text>
+</svg>

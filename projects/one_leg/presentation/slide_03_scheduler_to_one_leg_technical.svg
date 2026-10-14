@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430">
+  <defs>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ba0c2f"/>
+    </marker>
+    <marker id="arrow-dark" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#243746"/>
+    </marker>
+    <style>
+      .head { font: 700 25px Montserrat, Arial, sans-serif; }
+      .phase { font: 700 20px Montserrat, Arial, sans-serif; fill: #ffffff; }
+      .label { font: 700 21px Montserrat, Arial, sans-serif; fill: #243746; }
+      .small { font: 17px Montserrat, Arial, sans-serif; fill: #465661; }
+      .tiny { font: 15px Montserrat, Arial, sans-serif; fill: #465661; }
+    </style>
+  </defs>
+
+  <!-- Transparent technical diagram: full scheduler to isolated LF cycle -->
+  <text x="300" y="38" text-anchor="middle" class="head" fill="#ba0c2f">FULL-ROBOT REPOSITORY SCHEDULER</text>
+  <text x="925" y="38" text-anchor="middle" class="head" fill="#007681">ONE-LEG TESTBENCH</text>
+
+  <!-- Eight repository phases -->
+  <g transform="translate(30,78)">
+    <rect x="0" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="70" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="140" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="210" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="280" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="350" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="420" y="0" width="64" height="64" rx="12" fill="#ba0c2f"/>
+    <rect x="490" y="0" width="64" height="64" rx="12" fill="#007681"/>
+    <text x="32" y="40" text-anchor="middle" class="phase">1</text>
+    <text x="102" y="40" text-anchor="middle" class="phase">2</text>
+    <text x="172" y="40" text-anchor="middle" class="phase">3</text>
+    <text x="242" y="40" text-anchor="middle" class="phase">4</text>
+    <text x="312" y="40" text-anchor="middle" class="phase">5</text>
+    <text x="382" y="40" text-anchor="middle" class="phase">6</text>
+    <text x="452" y="40" text-anchor="middle" class="phase">7</text>
+    <text x="522" y="40" text-anchor="middle" class="phase">8</text>
+    <path d="M0 174 H484" stroke="#ba0c2f" stroke-width="9" stroke-linecap="round"/>
+    <path d="M490 174 H554" stroke="#007681" stroke-width="9" stroke-linecap="round"/>
+    <text x="242" y="211" text-anchor="middle" class="label">LF IN STANCE</text>
+    <text x="522" y="211" text-anchor="middle" class="label" fill="#007681">LF SWING</text>
+    <text x="277" y="253" text-anchor="middle" class="small">Other legs and body shifts define the full schedule</text>
+  </g>
+
+  <!-- Extraction arrow -->
+  <path d="M610 186 H733" stroke="#243746" stroke-width="4" fill="none" marker-end="url(#arrow-dark)"/>
+  <text x="672" y="164" text-anchor="middle" class="label">ISOLATE LF</text>
+  <text x="672" y="221" text-anchor="middle" class="tiny">trajectory behavior</text>
+
+  <!-- One-leg two-phase cycle -->
+  <g transform="translate(775,78)">
+    <rect x="0" y="0" width="185" height="110" rx="28" fill="#ffffff" stroke="#ba0c2f" stroke-width="4"/>
+    <rect x="240" y="0" width="150" height="110" rx="28" fill="#ffffff" stroke="#007681" stroke-width="4"/>
+    <text x="92" y="45" text-anchor="middle" class="label" fill="#ba0c2f">STANCE</text>
+    <text x="92" y="78" text-anchor="middle" class="small">linear rearward</text>
+    <text x="315" y="45" text-anchor="middle" class="label" fill="#007681">SWING</text>
+    <text x="315" y="78" text-anchor="middle" class="small">triangular lift</text>
+    <path d="M187 40 H232" stroke="#243746" stroke-width="3" fill="none" marker-end="url(#arrow-dark)"/>
+    <path d="M315 120 C315 174,92 174,92 120" stroke="#243746" stroke-width="3" fill="none" marker-end="url(#arrow-dark)"/>
+    <text x="195" y="204" text-anchor="middle" class="label">1 STANCE + 1 SWING</text>
+    <text x="195" y="244" text-anchor="middle" class="small">Same LF IK, joint limits, and MuJoCo actuators</text>
+  </g>
+
+  <!-- Scope statement -->
+  <rect x="230" y="373" width="740" height="44" rx="22" fill="#eef3f3" stroke="#c5d1d3" stroke-width="2"/>
+  <text x="600" y="401" text-anchor="middle" class="small">Extraction of LF motion — not reproduction of the complete four-leg gait</text>
+</svg>
