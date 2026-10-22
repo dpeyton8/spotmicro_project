@@ -42,6 +42,25 @@ def rate_limited_transition_step(current, target):
     return current + np.clip(filtered - current, -max_delta, max_delta)
 
 
+def parse_firmware_angle_command(command: str) -> np.ndarray:
+    """Parse the sketch's absolute shoulder,hip,knee degree command into kinematic radians."""
+    fields = command.split(",")
+    if len(fields) != 3:
+        raise ValueError("expected shoulder,hip,knee degrees")
+    try:
+        angles_deg = np.array([float(field.strip()) for field in fields])
+    except ValueError as error:
+        raise ValueError("angles must be numeric degrees") from error
+    if not np.all(np.isfinite(angles_deg)):
+        raise ValueError("angles must be finite")
+    angles_rad = np.radians(angles_deg)
+    invalid = leg.violated_joints(angles_rad)
+    if invalid:
+        names = ", ".join(leg.JOINT_NAMES[index] for index in invalid)
+        raise ValueError(f"angles exceed calibrated/simulator limits for {names}")
+    return angles_rad
+
+
 class RosJointStatePublisher:
     def __init__(self, sitstand_method="repo", walk_method="zhang"):
         import rclpy
@@ -64,6 +83,8 @@ class RosJointStatePublisher:
         self.node.create_subscription(Bool, "/sitstand_cycle_cmd", self._cycle, 10)
         self.node.create_subscription(String, "/one_leg_testbench/sitstand_math", self._sitstand_math, 10)
         self.node.create_subscription(String, "/one_leg_testbench/walk_math", self._walk_math, 10)
+        self.node.create_subscription(String, "/front_left_leg/angle_command", self._angle_command, 10)
+        self.angle_target = None
         self.joint_state_type = JointState
         self.joint_indices = {name: index for index, name in enumerate(COMETYANG_JOINT_NAMES)}
         self.mode = "stand"
@@ -72,6 +93,14 @@ class RosJointStatePublisher:
 
     def _set_mode(self, mode):
         self.mode = mode
+
+    def _angle_command(self, message):
+        try:
+            self.angle_target = parse_firmware_angle_command(message.data)
+        except ValueError as error:
+            self.node.get_logger().warning(f"Rejected angle command: {error}")
+            return
+        self._set_mode("angles")
 
     def _stand(self, message):
         if message.data:
@@ -264,6 +293,17 @@ def run(
                         selected_gait = walk_gait(ros_publisher.walk_method, gait)
                         q, point, phase = joint_targets(selected_gait, data.time - walk_start_time)
                         ros_q, ros_point, ros_phase = q, point, phase
+                    elif ros_publisher.mode == "angles" and ros_publisher.angle_target is not None and np.allclose(
+                        mount_position, COMETYANG_STAND_MOUNT, atol=0.001
+                    ):
+                        max_joint_step = np.radians(1.0)
+                        ros_q += np.clip(
+                            ros_publisher.angle_target - ros_q,
+                            -max_joint_step,
+                            max_joint_step,
+                        )
+                        q, point, phase = ros_q, leg.forward(ros_q), "angles"
+                        ros_point, ros_phase = point, phase
                     else:
                         local_foot = leg.kinematic_from_mujoco(
                             planted_toe_world - mount_position
