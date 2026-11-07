@@ -6,9 +6,14 @@ from pathlib import Path
 import numpy as np
 
 from one_leg_testbench import leg, plan
-from one_leg_testbench.sim import run, summarize
+from one_leg_testbench.sim import (
+    COMETYANG_LF_MAX_STRIDE_M,
+    cometyang_lf_walk_target,
+    parse_firmware_angle_command,
+    run,
+    summarize,
+)
 from one_leg_testbench.trajectory import SWING_POINTS_MM, Gait, bezier
-from one_leg_testbench.tracks import RepoGait, hao_mount, hao_progress
 
 try:
     import mujoco
@@ -94,41 +99,49 @@ class PaperTrajectory(unittest.TestCase):
             plan.check_path(Gait(hip_height=0.5))
 
 
-class TrackComparison(unittest.TestCase):
-    def test_hao_cycloid_has_exact_endpoints_and_midpoint(self):
-        self.assertEqual(hao_progress(-1.0, 2.0), 0.0)
-        self.assertAlmostEqual(hao_progress(1.0, 2.0), 0.5)
-        self.assertEqual(hao_progress(3.0, 2.0), 1.0)
-        start = np.array([0.0, 0.0, 0.173])
-        target = np.array([-0.05, 0.0, 0.101])
-        np.testing.assert_allclose(hao_mount(start, target, 0.0, 2.0), start)
-        np.testing.assert_allclose(hao_mount(start, target, 2.0, 2.0), target)
+class CometyangLFWalk(unittest.TestCase):
+    def test_eight_phase_schedule_and_ik_limits(self):
+        stand = np.radians([0.0, 50.1, -98.7])
+        stance_target = leg.mujoco_from_kinematic(leg.forward(stand))
+        swing_start = 7 * 0.36
+        stride = COMETYANG_LF_MAX_STRIDE_M
+        self.assertAlmostEqual(stride, 0.085)
+        start, start_phase = cometyang_lf_walk_target(0.0, stance_target)
+        stance_mid, mid_phase = cometyang_lf_walk_target(swing_start / 2, stance_target)
+        stance_end, end_phase = cometyang_lf_walk_target(swing_start - 1e-6, stance_target)
+        self.assertEqual((start_phase, mid_phase, end_phase), ("stance", "stance", "stance"))
+        np.testing.assert_allclose(start[0], stance_target[0])
+        np.testing.assert_allclose(stance_mid[0], stance_target[0] - stride / 2)
+        np.testing.assert_allclose(stance_end[0], stance_target[0] - stride, atol=1e-6)
+        faster_end, _ = cometyang_lf_walk_target(swing_start - 1e-6, stance_target, 0.06)
+        np.testing.assert_allclose(
+            faster_end[0], stance_target[0] - stride, atol=1e-6
+        )
 
-    def test_repo_walk_uses_linear_stance_and_triangular_swing(self):
-        gait = RepoGait()
-        start, phase = gait.foot_position(0.0)
-        stance_end, _ = gait.foot_position(gait.stance_seconds - 1e-9)
-        apex, phase_apex = gait.foot_position(gait.stance_seconds + gait.swing_seconds / 2)
-        cycle_end, _ = gait.foot_position(gait.cycle_seconds - 1e-9)
-        self.assertEqual(phase, "stance")
-        self.assertEqual(phase_apex, "swing")
-        self.assertGreater(start[0], stance_end[0])
-        self.assertAlmostEqual(apex[2], -gait.hip_height + gait.clearance)
-        np.testing.assert_allclose(cycle_end, start, atol=1e-8)
+        swing_begin, swing_begin_phase = cometyang_lf_walk_target(swing_start, stance_target)
+        self.assertEqual(swing_begin_phase, "swing")
+        np.testing.assert_allclose(swing_begin[0], stance_target[0] - stride)
+        for t in (2.0, 2.88):
+            point, phase = cometyang_lf_walk_target(t, stance_target)
+            self.assertIn(phase, ("stance", "swing"))
 
-    def test_repo_walk_uses_same_ik_and_stays_inside_limits(self):
-        gait = RepoGait()
-        plan.check_path(gait)
-        for t in np.arange(0.0, gait.cycle_seconds, 0.01):
-            q, point, _ = plan.joint_targets(gait, float(t))
-            self.assertFalse(leg.violated_joints(q))
-            np.testing.assert_allclose(
-                leg.mujoco_from_kinematic(leg.forward(q)), point, atol=1e-9
-            )
+        point, phase = cometyang_lf_walk_target(swing_start + 0.18, stance_target)
+        self.assertEqual(phase, "swing")
+        np.testing.assert_allclose(point[0], stance_target[0] - stride / 2)
+        self.assertAlmostEqual(point[2] - stance_target[2], 0.030)
+        end, end_phase = cometyang_lf_walk_target(2.88, stance_target)
+        self.assertEqual(end_phase, "stance")
+        np.testing.assert_allclose(end[0], stance_target[0])
+
+        for t in np.linspace(0.0, 2.88, 288, endpoint=False):
+            point, _ = cometyang_lf_walk_target(float(t), stance_target)
+            angles = leg.inverse(leg.kinematic_from_mujoco(point))
+            self.assertIsNotNone(angles)
+            self.assertEqual(leg.violated_joints(angles), [])
 
 
 class FirmwareParity(unittest.TestCase):
-    INO = Path(__file__).resolve().parents[2] / "one_leg/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino"
+    INO = Path(__file__).resolve().parents[1] / "firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino"
 
     @classmethod
     def setUpClass(cls):
@@ -158,6 +171,15 @@ class FirmwareParity(unittest.TestCase):
     def test_serial_line_is_three_comma_separated_numbers(self):
         self.assertRegex(leg.firmware_line([0.1, 0.2, -0.3]), r"^-?\d+\.\d,-?\d+\.\d,-?\d+\.\d$")
 
+    def test_ros_angle_command_matches_firmware_neutral_order(self):
+        angles = parse_firmware_angle_command("-7.6,38.6,-82.8")
+        np.testing.assert_allclose(angles, leg.CENTER_RAD, atol=1e-12)
+
+    def test_ros_angle_command_rejects_bad_or_out_of_range_values(self):
+        for command in ("1,2", "a,2,3", "-7.6,38.6,-160"):
+            with self.subTest(command=command), self.assertRaises(ValueError):
+                parse_firmware_angle_command(command)
+
     def test_gait_never_reaches_pwm_clamp(self):
         gait = Gait()
         for t in np.arange(0.0, gait.cycle_seconds, 0.01):
@@ -177,14 +199,6 @@ class MujocoSimulation(unittest.TestCase):
         self.assertLess(stats["swing_contact_fraction"], 0.2)
         self.assertGreater(stats["max_toe_clearance_swing_mm"], 15.0)
         self.assertGreater(stats["peak_normal_force_n"], 1.0)
-
-    def test_repo_walk_also_runs_through_mujoco(self):
-        gait = RepoGait()
-        rows, _, settle = run(gait, drop=0.06, lower_seconds=2.0, hold_seconds=0.5, cycles=1.0, viewer=False)
-        stats = summarize(rows, settle)
-        self.assertTrue(all(np.isfinite(r["tracking_error_m"]) for r in rows))
-        self.assertGreater(stats["stance_contact_fraction"], 0.8)
-        self.assertGreater(stats["max_toe_clearance_swing_mm"], 15.0)
 
 
 if __name__ == "__main__":

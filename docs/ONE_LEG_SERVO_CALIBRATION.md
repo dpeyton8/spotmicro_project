@@ -4,8 +4,8 @@ The horn is fixed to the printed leg, so each servo is centered electrically fir
 and then pushed onto the horn with the leg held at its neutral pose. Servos stay
 out of the leg until they have been centered.
 
-Sketches: `projects/one_leg/firmware/one_left_leg_servo_test.ino` (calibration) and
-`projects/one_leg/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino` (angle control).
+Sketches: `projects/one_leg_testbench/firmware/one_left_leg_servo_test.ino` (calibration) and
+`projects/one_leg_testbench/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino` (angle control).
 Channels: 0 = shoulder (q1), 1 = hip (q2), 2 = knee (q3).
 
 ## Before powering anything
