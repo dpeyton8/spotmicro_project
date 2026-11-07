@@ -6,7 +6,7 @@
         },
         {
             "name": "Mike Physical Reference",
-            "path": "physical/spotMicro"
+            "path": "physical/spotMicroV1"
         },
         {
             "name": "Mike ROS2 MuJoCo",
