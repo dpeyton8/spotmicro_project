@@ -149,6 +149,78 @@ The ROS node checks values against the firmware/simulator joint limits and slews
 1 degree per 20 ms, matching the sketch's gradual `moveJoint` rate. The node itself publishes
 simulated joint states; the optional bridge forwards them to the ESP32.
 
+#### Continuous demo loop: walk, sit/stand, and joint angles
+
+Run this in Terminal 3 after sourcing ROS, with Terminals 1 and 2 running. It walks for 15 seconds,
+then does three sit/stand cycles, holding each pose for 4 seconds, followed by separate
+±15-degree joint demos. It repeats until Ctrl+C; the interrupt handler then commands stand. The
+angle steps have 0.6-second pauses (the simulator slews at 1 degree per 20 ms).
+
+```bash
+send_bool() {
+  ros2 topic pub --once "$1" std_msgs/msg/Bool "{data: true}"
+}
+
+send_angles() {
+  ros2 topic pub --once /front_left_leg/angle_command std_msgs/msg/String "{data: '$1'}"
+}
+
+stop_demo() {
+  trap - INT TERM
+  echo "Stopping demo and commanding stand..."
+  send_bool /stand_cmd
+  exit 0
+}
+trap stop_demo INT TERM
+
+while true; do
+  send_bool /stand_cmd
+  sleep 3
+  send_bool /walk_cmd
+  sleep 15
+  send_bool /stand_cmd
+  sleep 3
+
+  # Three sit/stand cycles: hold each pose for 4 seconds
+  for cycle in 1 2 3; do
+    send_bool /idle_cmd
+    sleep 4
+    send_bool /stand_cmd
+    sleep 4
+  done
+
+  # Q1 shoulder: center -7.6 degrees, sweep +/-15 degrees
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '7.4,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '-22.6,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+
+  # Q2 upper leg/hip: center 38.6 degrees, sweep +/-15 degrees
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,53.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,23.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+
+  # Q3 lower leg/knee: center -82.8 degrees, sweep +/-15 degrees
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-67.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  send_angles '-7.6,38.6,-97.8'; sleep 0.6
+  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+done
+```
+
+Mike's `spot_micro_motion_cmd.yaml` configures `servo_max_angle_deg: 82.5`; its calibration
+guide says that value worked for Mike's robot. This is a software command bound, **not a verified
+safe mechanical range for this leg**. The simulator/firmware intersection is q1 `[-31.4, 31.4]`,
+q2 `[-43.9, 88.7]`, and q3 `[-149.0, -0.3]` degrees, but those limits do not prove the assembled
+hardware can reach them without binding. This loop stays within ±15 degrees of the calibrated
+centers (`-7.6`, `38.6`, `-82.8`) and is not a full-range sweep. Keep the leg unloaded and clear,
+watch it continuously, and cut servo power immediately if a servo buzzes, strains, or contacts a
+stop. Ctrl+C's stand command is best effort; cut power directly if motion does not stop.
+
 ### Alternative: Paper Gait on Cometyang MuJoCo
 
 This alternative uses the Cometyang MuJoCo physics model and RViz; it does not run the suspended
