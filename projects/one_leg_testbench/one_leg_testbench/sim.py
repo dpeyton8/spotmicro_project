@@ -43,6 +43,8 @@ COMETYANG_LF_WALK_SPEED_MPS = COMETYANG_LF_MAX_STRIDE_M / (
 )
 COMETYANG_LF_MAX_WALK_SPEED_MPS = 0.08
 COMETYANG_GAIT_ALPHA = 0.5
+SHAKE_POSE_DEG = np.array([-7.6, -43.9, -60.0])
+NORMAL_STAND_POSE_DEG = np.array([0.0, 50.1, -98.7])
 
 
 def parse_firmware_angle_command(command: str) -> np.ndarray:
@@ -189,8 +191,16 @@ class RosJointStatePublisher:
             self._set_mode("paper_walk")
         elif command == "stop":
             self._set_mode("stand")
+        elif command == "shake":
+            self.angle_target = np.radians(SHAKE_POSE_DEG)
+            self._set_mode("angles")
+        elif command == "shake_off":
+            self.angle_target = np.radians(NORMAL_STAND_POSE_DEG)
+            self._set_mode("angles")
         else:
-            self.node.get_logger().warning("Paper-gait command must be walk or stop")
+            self.node.get_logger().warning(
+                "Command must be walk, stop, shake, or shake_off"
+            )
 
     def spin_once(self):
         self.rclpy.spin_once(self.node, timeout_sec=0.0)

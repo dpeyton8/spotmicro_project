@@ -36,8 +36,11 @@ Channels: 0 = shoulder (q1), 1 = hip (q2), 2 = knee (q3).
 8. Use `off <ch>` or `offall` whenever the leg is moved by hand.
 9. Record center pulse, minimum, maximum and direction for each joint.
 
-Commands: `help`, `center <ch>`, `set <ch> <usec>` (1100-1900 us), `off <ch>`, `offall`.
-The 1100-1900 us bounds are conservative but not guaranteed safe on the assembled leg.
+Commands: `help`, `center <ch>`, `set <ch> <usec>` (500-2500 us commissioning
+envelope), `off <ch>`, `offall`. This broad envelope exists to discover the real
+limits and is **not a safe operating range** for the assembled leg. Approach an
+unknown endpoint in small increments, one unloaded joint at a time, and replace the
+broad values with measured per-joint limits before normal or unattended operation.
 
 ## Check against the angle sketch
 

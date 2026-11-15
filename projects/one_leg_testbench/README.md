@@ -85,8 +85,9 @@ python3 ~/Documents/spotmicro_project/projects/one_leg_testbench/esp32_serial_br
 The bridge forwards the simulated front-left `/joint_states` to the ESP32 and may immediately
 command the current pose. Keep the leg clear and stay near the servo power switch; cut power if
 anything strains or hits a limit. Ctrl+C normally sends `offall`, but a serial failure can
-prevent it from arriving. The current pulse calibration and sit knee clamp (1100 microseconds)
-can limit physical motion, so verify the real leg against the simulation.
+prevent it from arriving. The current pulse calibration uses a broad 500-2500 microsecond
+commissioning envelope; measure and configure narrower per-joint limits before unattended use,
+and verify the real leg against the simulation.
 
 For simulation only, omit Terminal 2.
 
@@ -149,12 +150,53 @@ The ROS node checks values against the firmware/simulator joint limits and slews
 1 degree per 20 ms, matching the sketch's gradual `moveJoint` rate. The node itself publishes
 simulated joint states; the optional bridge forwards them to the ESP32.
 
+Named paw-shake commands use `/one_leg_testbench/command`:
+
+```bash
+ros2 topic pub --once /one_leg_testbench/command std_msgs/msg/String "{data: shake}"
+ros2 topic pub --once /one_leg_testbench/command std_msgs/msg/String "{data: shake_off}"
+```
+
+`shake` moves to `-7.6,-43.9,-60.0`, waits one second after the simulated pose is reached,
+then the serial bridge disables q3/channel 2 while q1/channel 0 and q2/channel 1 remain powered
+at the shake angle. This makes only the knee free-moving; it is not active impedance
+damping. `shake_off` re-enables all three outputs and returns the leg to the repository stand
+pose `0.0,50.1,-98.7`. The serial bridge must be running for physical release and re-enable
+behavior; MuJoCo/RViz still change pose without it.
+
+The q3 release is exclusive to `shake`. Any stand, sit, repository walk, Zhang walk,
+`shake_off`, or direct-angle command automatically re-enables q1, q2, and q3 before following
+the new motion. Explicit commands on `/one_leg_testbench/motor_command` remain in effect until
+another manual motor command or a normal motion command changes them.
+
+The bridge also exposes independent output control for future tests on
+`/one_leg_testbench/motor_command`. Turning a channel off stops its PWM pulses; turning it on
+causes the next `/joint_states` message to command its current simulated angle:
+
+```bash
+# Release or re-enable one joint
+ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{data: q1_off}"
+ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{data: q1_on}"
+# The same commands work with q2_off/q2_on and q3_off/q3_on.
+
+# Release or re-enable every joint
+ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{data: all_off}"
+ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{data: all_on}"
+
+# Print enabled/disabled channels in the bridge terminal
+ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{data: status}"
+```
+
+These are output-release controls, not adjustable damping or torque control. Standard hobby
+servos driven through the PCA9685 provide position commands but no software torque setting.
+
 #### Continuous demo loop: walk, sit/stand, and joint angles
 
 Run this in Terminal 3 after sourcing ROS, with Terminals 1 and 2 running. It walks for 15 seconds,
 then does three sit/stand cycles, holding each pose for 4 seconds, followed by separate
-±15-degree joint demos. It repeats until Ctrl+C; the interrupt handler then commands stand. The
-angle steps have 0.6-second pauses (the simulator slews at 1 degree per 20 ms).
+full-range joint demos. It repeats until Ctrl+C; the interrupt handler then commands stand. The
+endpoints are kept 0.1-0.2 degrees inside the testbench limits to avoid floating-point rejection,
+and the 2.5-second pauses allow the 1-degree-per-20-ms slew to finish.
 
 ```bash
 send_bool() {
@@ -189,26 +231,26 @@ while true; do
     sleep 4
   done
 
-  # Q1 shoulder: center -7.6 degrees, sweep +/-15 degrees
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '7.4,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '-22.6,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  # Q1 shoulder: center -7.6 degrees, near full range [-31.4, 31.4]
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '31.3,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '-31.3,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
 
-  # Q2 upper leg/hip: center 38.6 degrees, sweep +/-15 degrees
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,53.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,23.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  # Q2 upper leg/hip: center 38.6 degrees, near full range [-43.9, 88.7]
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,88.6,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,-43.8,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
 
-  # Q3 lower leg/knee: center -82.8 degrees, sweep +/-15 degrees
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-67.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
-  send_angles '-7.6,38.6,-97.8'; sleep 0.6
-  send_angles '-7.6,38.6,-82.8'; sleep 0.6
+  # Q3 lower leg/knee: center -82.8 degrees, near full range [-149.0, -0.3]
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-0.5'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
+  send_angles '-7.6,38.6,-148.8'; sleep 2.5
+  send_angles '-7.6,38.6,-82.8'; sleep 2.5
 done
 ```
 
@@ -216,10 +258,11 @@ Mike's `spot_micro_motion_cmd.yaml` configures `servo_max_angle_deg: 82.5`; its 
 guide says that value worked for Mike's robot. This is a software command bound, **not a verified
 safe mechanical range for this leg**. The simulator/firmware intersection is q1 `[-31.4, 31.4]`,
 q2 `[-43.9, 88.7]`, and q3 `[-149.0, -0.3]` degrees, but those limits do not prove the assembled
-hardware can reach them without binding. This loop stays within ±15 degrees of the calibrated
-centers (`-7.6`, `38.6`, `-82.8`) and is not a full-range sweep. Keep the leg unloaded and clear,
-watch it continuously, and cut servo power immediately if a servo buzzes, strains, or contacts a
-stop. Ctrl+C's stand command is best effort; cut power directly if motion does not stop.
+hardware can reach them without binding. This loop deliberately approaches those full software
+limits. Run it on physical hardware only after verifying every endpoint individually. Keep the
+leg unloaded and clear, watch it continuously, and cut servo power immediately if a servo buzzes,
+strains, or contacts a stop. Ctrl+C's stand command is best effort; cut power directly if motion
+does not stop.
 
 ### Alternative: Paper Gait on Cometyang MuJoCo
 

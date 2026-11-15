@@ -8,6 +8,8 @@ import numpy as np
 from one_leg_testbench import leg, plan
 from one_leg_testbench.sim import (
     COMETYANG_LF_MAX_STRIDE_M,
+    NORMAL_STAND_POSE_DEG,
+    SHAKE_POSE_DEG,
     cometyang_lf_walk_target,
     parse_firmware_angle_command,
     run,
@@ -179,6 +181,13 @@ class FirmwareParity(unittest.TestCase):
         for command in ("1,2", "a,2,3", "-7.6,38.6,-160"):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 parse_firmware_angle_command(command)
+
+    def test_named_shake_poses_are_inside_limits(self):
+        np.testing.assert_allclose(
+            parse_firmware_angle_command("-7.6,-43.9,-60.0"),
+            np.radians(SHAKE_POSE_DEG),
+        )
+        self.assertEqual(leg.violated_joints(np.radians(NORMAL_STAND_POSE_DEG)), [])
 
     def test_gait_never_reaches_pwm_clamp(self):
         gait = Gait()

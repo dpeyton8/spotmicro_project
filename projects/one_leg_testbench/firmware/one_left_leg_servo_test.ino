@@ -16,9 +16,11 @@
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 
 constexpr uint8_t SERVO_CHANNELS[] = {0, 1, 2};
-constexpr uint16_t SAFE_MIN_US = 1100;
+// Broad commissioning envelope so the testbench can discover the assembled
+// leg's real limits. Replace these with measured per-joint limits afterward.
+constexpr uint16_t COMMISSIONING_MIN_US = 500;
 constexpr uint16_t SAFE_CENTER_US = 1500;
-constexpr uint16_t SAFE_MAX_US = 1900;
+constexpr uint16_t COMMISSIONING_MAX_US = 2500;
 
 bool isLegChannel(int channel) {
   for (uint8_t legChannel : SERVO_CHANNELS) {
@@ -38,7 +40,7 @@ void disableAll() {
 void printHelp() {
   Serial.println("Commands:");
   Serial.println("  center <channel>       center channel 0, 1, or 2");
-  Serial.println("  set <channel> <usec>   command 1100..1900 microseconds");
+  Serial.println("  set <channel> <usec>   command 500..2500 microseconds (commissioning)");
   Serial.println("  off <channel>          stop pulses on one channel");
   Serial.println("  offall                 stop pulses on all leg channels");
 }
@@ -95,8 +97,8 @@ void loop() {
   }
   if (verb == "set" && secondSpace >= 0) {
     int pulseUs = arguments.substring(secondSpace + 1).toInt();
-    if (pulseUs < SAFE_MIN_US || pulseUs > SAFE_MAX_US) {
-      Serial.printf("Rejected: pulse must be %u..%u us\n", SAFE_MIN_US, SAFE_MAX_US);
+    if (pulseUs < COMMISSIONING_MIN_US || pulseUs > COMMISSIONING_MAX_US) {
+      Serial.printf("Rejected: pulse must be %u..%u us\n", COMMISSIONING_MIN_US, COMMISSIONING_MAX_US);
       return;
     }
     pwm.writeMicroseconds(static_cast<uint8_t>(channel), static_cast<uint16_t>(pulseUs));
@@ -106,4 +108,3 @@ void loop() {
 
   Serial.println("Invalid command; enter help");
 }
-
