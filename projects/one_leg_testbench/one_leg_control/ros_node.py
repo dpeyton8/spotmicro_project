@@ -1,6 +1,6 @@
 """ROS 2 node: publishes the paper gait as front-left joint targets for the existing MuJoCo + RViz pipeline.
 
-Run from projects/one_leg_testbench with ROS sourced:  python3 -m one_leg_testbench.ros_node
+Run from projects/one_leg_testbench with ROS sourced:  python3 -m one_leg_control.ros_node
 Commands on /one_leg_testbench/command: walk, stop. Targets go to /front_left_leg/joint_targets (radians).
 """
 

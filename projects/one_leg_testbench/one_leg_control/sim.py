@@ -1,4 +1,4 @@
-"""Runs the paper's foot path on the left-leg MuJoCo rig: hold above ground, lower to the floor, then walk in place."""
+"""Run the one-leg motion tracks on a selectable mirrored left/right MuJoCo rig."""
 
 from __future__ import annotations
 
@@ -17,7 +17,16 @@ from . import leg
 from .plan import PathError, joint_targets
 from .trajectory import Gait, HALF_STROKE_MM
 
-MODEL = Path(__file__).resolve().parent / "model" / "left_leg_rig.xml"
+MODEL_DIR = Path(__file__).resolve().parent / "model"
+MODELS = {
+    "left": MODEL_DIR / "left_leg_rig.xml",
+    "right": MODEL_DIR / "right_leg_rig.xml",
+}
+MODEL = MODELS["left"]  # Backward-compatible constant used by existing tests.
+SIDE_JOINT_NAMES = {
+    "left": leg.JOINT_NAMES,
+    "right": ("front_right_shoulder", "front_right_leg", "front_right_foot"),
+}
 COMETYANG_JOINT_NAMES = (
     "front_right_shoulder", "front_right_leg", "front_right_foot",
     "rear_right_shoulder", "rear_right_leg", "rear_right_foot",
@@ -47,7 +56,7 @@ SHAKE_POSE_DEG = np.array([-7.6, -43.9, -60.0])
 NORMAL_STAND_POSE_DEG = np.array([0.0, 50.1, -98.7])
 
 
-def parse_firmware_angle_command(command: str) -> np.ndarray:
+def parse_firmware_angle_command(command: str, side: str = "left") -> np.ndarray:
     """Parse the sketch's absolute shoulder,hip,knee degree command into kinematic radians."""
     fields = command.split(",")
     if len(fields) != 3:
@@ -59,11 +68,11 @@ def parse_firmware_angle_command(command: str) -> np.ndarray:
     if not np.all(np.isfinite(angles_deg)):
         raise ValueError("angles must be finite")
     angles_rad = np.radians(angles_deg)
-    invalid = leg.violated_joints(angles_rad)
+    invalid = leg.violated_joints_side(angles_rad, side)
     if invalid:
-        names = ", ".join(leg.JOINT_NAMES[index] for index in invalid)
+        names = ", ".join(SIDE_JOINT_NAMES[side][index] for index in invalid)
         raise ValueError(f"angles exceed calibrated/simulator limits for {names}")
-    return angles_rad
+    return leg.canonical_angles(angles_rad, side)
 
 
 def rate_limited_transition_step(current, target):
@@ -118,7 +127,7 @@ def cometyang_lf_lift_target(time_s: float, stance_target_mujoco) -> tuple[np.nd
 
 
 class RosJointStatePublisher:
-    def __init__(self):
+    def __init__(self, side: str = "left"):
         import rclpy
         from rclpy.node import Node
         from geometry_msgs.msg import TransformStamped
@@ -129,6 +138,9 @@ class RosJointStatePublisher:
         from tf2_ros import TransformBroadcaster
 
         self.rclpy = rclpy
+        self.side = side
+        self.side_joint_names = SIDE_JOINT_NAMES[side]
+        self.hip_y = COMETYANG_LF_HIP_Y if side == "left" else -COMETYANG_LF_HIP_Y
         if not rclpy.ok():
             rclpy.init()
         self.node = Node("one_leg_testbench_mujoco")
@@ -140,7 +152,9 @@ class RosJointStatePublisher:
         self.node.create_subscription(Bool, "/walk_cmd", self._walk, 10)
         self.node.create_subscription(Bool, "/cometyang_walk_cmd", self._cometyang_walk, 10)
         self.node.create_subscription(Twist, "/cmd_vel", self._velocity_command, 10)
-        self.node.create_subscription(String, "/front_left_leg/angle_command", self._angle_command, 10)
+        self.node.create_subscription(
+            String, f"/front_{side}_leg/angle_command", self._angle_command, 10
+        )
         self.node.create_subscription(String, "/one_leg_testbench/command", self._paper_command, 10)
         self.joint_state_type = JointState
         self.joint_indices = {name: index for index, name in enumerate(COMETYANG_JOINT_NAMES)}
@@ -179,7 +193,7 @@ class RosJointStatePublisher:
 
     def _angle_command(self, message):
         try:
-            self.angle_target = parse_firmware_angle_command(message.data)
+            self.angle_target = parse_firmware_angle_command(message.data, self.side)
         except ValueError as error:
             self.node.get_logger().warning(f"Rejected angle command: {error}")
             return
@@ -205,13 +219,13 @@ class RosJointStatePublisher:
     def spin_once(self):
         self.rclpy.spin_once(self.node, timeout_sec=0.0)
 
-    def publish(self, front_left_positions, mount_position):
+    def publish(self, selected_leg_positions, mount_position):
         message = self.joint_state_type()
         message.header.stamp = self.node.get_clock().now().to_msg()
         message.header.frame_id = "base_link"
         message.name = list(COMETYANG_JOINT_NAMES)
         message.position = [0.0] * len(COMETYANG_JOINT_NAMES)
-        for name, position in zip(leg.JOINT_NAMES, front_left_positions):
+        for name, position in zip(self.side_joint_names, selected_leg_positions):
             message.position[self.joint_indices[name]] = float(position)
         self.publisher.publish(message)
 
@@ -220,7 +234,7 @@ class RosJointStatePublisher:
         transform.header.frame_id = "world"
         transform.child_frame_id = "base_link"
         transform.transform.translation.x = float(mount_position[0] - COMETYANG_LF_HIP_X)
-        transform.transform.translation.y = float(mount_position[1] - COMETYANG_LF_HIP_Y)
+        transform.transform.translation.y = float(mount_position[1] - self.hip_y)
         transform.transform.translation.z = float(mount_position[2])
         transform.transform.rotation.w = 1.0
         self.tf_broadcaster.sendTransform(transform)
@@ -256,10 +270,13 @@ def run(
     cycles: float,
     viewer: bool,
     ros_publisher: RosJointStatePublisher | None = None,
+    side: str = "left",
 ):
-    model = mujoco.MjModel.from_xml_path(str(MODEL))
+    if side not in MODELS:
+        raise ValueError("side must be 'left' or 'right'")
+    model = mujoco.MjModel.from_xml_path(str(MODELS[side]))
     data = mujoco.MjData(model)
-    toe = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "left_toe")
+    toe = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, f"{side}_toe")
     floor = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
     site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "toe_site")
     mount_touch = gait.hip_height + leg.TOE_RADIUS
@@ -274,8 +291,9 @@ def run(
 
         q0 = np.radians(POSES["stand"])
         mount_position = COMETYANG_STAND_MOUNT.copy()
-    data.qpos[:3] = leg.to_ros(q0)
-    data.ctrl[:3] = leg.to_ros(q0)
+    model_q0 = leg.mirrored_angles(q0, side)
+    data.qpos[:3] = leg.to_ros_side(model_q0, side)
+    data.ctrl[:3] = leg.to_ros_side(model_q0, side)
     data.mocap_pos[0] = mount_position
     mujoco.mj_forward(model, data)
     planted_toe_world = None
@@ -358,7 +376,7 @@ def run(
                             ros_publisher.walk_speed_mps,
                             2.0 * HALF_STROKE_MM * 1e-3 * gait.scale,
                         )
-                        q = leg.inverse(leg.kinematic_from_mujoco(point))
+                        q = leg.inverse(leg.kinematic_from_mujoco_side(point, side))
                         if q is None or leg.violated_joints(q):
                             raise RuntimeError("Cometyang LF gait target left the IK workspace")
                         ros_q, ros_point, ros_phase = q, point, phase
@@ -371,7 +389,7 @@ def run(
                         point, phase = cometyang_lf_lift_target(
                             data.time - walk_start_time, stance_foot_target_mujoco
                         )
-                        q = leg.inverse(leg.kinematic_from_mujoco(point))
+                        q = leg.inverse(leg.kinematic_from_mujoco_side(point, side))
                         if q is None or leg.violated_joints(q):
                             raise RuntimeError("Cometyang LF lift target left the IK workspace")
                         ros_q, ros_point, ros_phase = q, point, phase
@@ -387,8 +405,8 @@ def run(
                         q, point, phase = ros_q, leg.forward(ros_q), "angles"
                         ros_point, ros_phase = point, phase
                     else:
-                        local_foot = leg.kinematic_from_mujoco(
-                            planted_toe_world - mount_position
+                        local_foot = leg.kinematic_from_mujoco_side(
+                            planted_toe_world - mount_position, side
                         )
                         q = leg.inverse(local_foot)
                         if q is None or leg.violated_joints(q):
@@ -401,24 +419,29 @@ def run(
                 q, point, phase = ros_q, ros_point, ros_phase
 
             data.mocap_pos[0] = mount_position if ros_publisher is not None else [0, 0, mount_z]
-            data.ctrl[:3] = leg.to_ros(q)
+            selected_q = leg.mirrored_angles(q, side)
+            data.ctrl[:3] = leg.to_ros_side(selected_q, side)
             mujoco.mj_step(model, data)
             if ros_publisher is not None and data.time >= next_ros_publish:
                 ros_publisher.publish(data.qpos[:3], mount_position)
                 next_ros_publish = data.time + 0.02
 
             toe_rel = data.site_xpos[site] - data.mocap_pos[0]
+            logged_point = np.asarray(point)
+            if side == "right" and ros_publisher is None:
+                logged_point = logged_point.copy()
+                logged_point[1] *= -1.0
             touching, force = contact_force(model, data, toe, floor)
             rows.append(
                 dict(
                     time_s=data.time, phase=phase if data.time > hold_seconds + lower_seconds else "lowering",
-                    mount_z_m=mount_z, target_x_m=point[0], target_y_m=point[1], target_z_m=point[2],
+                    mount_z_m=mount_z, target_x_m=logged_point[0], target_y_m=logged_point[1], target_z_m=logged_point[2],
                     toe_x_m=toe_rel[0], toe_y_m=toe_rel[1], toe_z_m=toe_rel[2],
-                    tracking_error_m=float(np.linalg.norm(toe_rel - point)),
+                    tracking_error_m=float(np.linalg.norm(toe_rel - logged_point)),
                     toe_height_m=float(data.site_xpos[site][2]) - leg.TOE_RADIUS,
                     in_contact=int(touching), normal_force_n=force,
                     **{f"q{i + 1}_cmd_rad": float(q[i]) for i in range(3)},
-                    **{f"q{i + 1}_rad": float(leg.from_ros(data.qpos[:3])[i]) for i in range(3)},
+                    **{f"q{i + 1}_rad": float(leg.from_ros_side(data.qpos[:3], side)[i]) for i in range(3)},
                 )
             )
             if handle is not None and data.time >= next_viewer_sync:
@@ -462,14 +485,16 @@ def main() -> int:
     parser.add_argument("--cycles", type=float, default=3.0)
     parser.add_argument("--viewer", action="store_true")
     parser.add_argument("--ros", action="store_true", help="publish Cometyang joint_states for RViz")
+    parser.add_argument("--leg", choices=("left", "right"), default="left")
     parser.add_argument("--output", type=Path, help="write the per-step log as CSV")
     args = parser.parse_args()
 
     gait = Gait(hip_height=args.hip_height, scale=args.scale, stance_press=args.press)
-    ros_publisher = RosJointStatePublisher() if args.ros else None
+    ros_publisher = RosJointStatePublisher(args.leg) if args.ros else None
     try:
         rows, _, settle = run(
-            gait, args.drop, args.lower, args.hold, args.cycles, args.viewer, ros_publisher
+            gait, args.drop, args.lower, args.hold, args.cycles, args.viewer,
+            ros_publisher, args.leg
         )
     except PathError as error:
         print(f"Infeasible path: {error}", file=sys.stderr)

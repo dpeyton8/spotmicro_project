@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from one_leg_testbench import leg, plan
-from one_leg_testbench.sim import (
+from one_leg_control import leg, plan
+from one_leg_control.sim import (
     COMETYANG_LF_MAX_STRIDE_M,
     NORMAL_STAND_POSE_DEG,
     SHAKE_POSE_DEG,
@@ -15,7 +15,7 @@ from one_leg_testbench.sim import (
     run,
     summarize,
 )
-from one_leg_testbench.trajectory import SWING_POINTS_MM, Gait, bezier
+from one_leg_control.trajectory import SWING_POINTS_MM, Gait, bezier
 
 try:
     import mujoco
@@ -50,9 +50,37 @@ class LegKinematics(unittest.TestCase):
         q = np.array([0.1, 0.7, -1.4])
         np.testing.assert_allclose(leg.from_ros(leg.to_ros(q)), q)
 
+    def test_right_branch_mirrors_left_pose(self):
+        q_left = np.radians([-7.6, 38.6, -82.8])
+        q_right = leg.mirrored_angles(q_left, "right")
+        self.assertGreater(q_right[2], 0.0)
+        left_point = leg.mujoco_from_kinematic_side(leg.forward(q_left), "left")
+        right_local = leg.forward(q_right)
+        right_local[2] *= -1.0
+        right_point = leg.mujoco_from_kinematic_side(right_local, "right")
+        np.testing.assert_allclose(right_point, left_point * [1.0, -1.0, 1.0], atol=1e-9)
+
+    def test_side_ros_sign_mappings_are_involutions(self):
+        for side, q in (
+            ("left", np.array([0.1, 0.7, -1.4])),
+            ("right", np.array([0.1, -0.7, 1.4])),
+        ):
+            np.testing.assert_allclose(
+                leg.from_ros_side(leg.to_ros_side(q, side), side), q
+            )
+
+    def test_right_direct_angles_map_back_to_left_canonical_pose(self):
+        q_left = np.radians([0.0, 50.1, -98.7])
+        q_right = leg.mirrored_angles(q_left, "right")
+        np.testing.assert_allclose(leg.canonical_angles(q_right, "right"), q_left)
+        command = ",".join(str(value) for value in np.degrees(q_right))
+        np.testing.assert_allclose(
+            parse_firmware_angle_command(command, "right"), q_left, atol=1e-9
+        )
+
     @unittest.skipIf(mujoco is None, "mujoco not installed")
     def test_forward_matches_mujoco_toe(self):
-        from one_leg_testbench.sim import MODEL
+        from one_leg_control.sim import MODEL
 
         model = mujoco.MjModel.from_xml_path(str(MODEL))
         data = mujoco.MjData(model)
@@ -64,6 +92,24 @@ class LegKinematics(unittest.TestCase):
             mujoco.mj_forward(model, data)
             toe = data.site_xpos[site] - data.mocap_pos[0]
             np.testing.assert_allclose(toe, leg.mujoco_from_kinematic(leg.forward(q)), atol=1e-9)
+
+    @unittest.skipIf(mujoco is None, "mujoco not installed")
+    def test_right_mujoco_rig_is_spatial_mirror_of_left(self):
+        from one_leg_control.sim import MODELS
+
+        q_left = np.radians([-7.6, 38.6, -82.8])
+        toes = {}
+        for side in ("left", "right"):
+            model = mujoco.MjModel.from_xml_path(str(MODELS[side]))
+            data = mujoco.MjData(model)
+            site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "toe_site")
+            q = leg.mirrored_angles(q_left, side)
+            data.qpos[:3] = leg.to_ros_side(q, side)
+            mujoco.mj_forward(model, data)
+            toes[side] = data.site_xpos[site] - data.mocap_pos[0]
+        np.testing.assert_allclose(
+            toes["right"], toes["left"] * [1.0, -1.0, 1.0], atol=1e-9
+        )
 
 
 class PaperTrajectory(unittest.TestCase):
@@ -226,6 +272,7 @@ class BridgeFirmware(unittest.TestCase):
         self.assertIn("constexpr uint8_t SERVO_CHANNELS[] = {0, 1, 2};", right)
         for command in ('"set"', '"off"', '"offall"'):
             self.assertIn(command, right)
+
 
 
 @unittest.skipIf(mujoco is None, "mujoco not installed")

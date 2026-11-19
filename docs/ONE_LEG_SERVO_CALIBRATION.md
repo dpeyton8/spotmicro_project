@@ -67,7 +67,7 @@ After mounting, flash the angle sketch, let it go to neutral, and trim again if 
 
 The angle sketch's values (center PWM 306, ranges 389/397/387, direction 1) come from the
 ROS config for Mike's servos. If yours differ, update the `Joint leg[]` table in the angle
-sketch and the matching constants in `projects/one_leg_testbench/one_leg_testbench/leg.py`.
+sketch and the matching constants in `projects/one_leg_testbench/one_leg_control/leg.py`.
 The testbench parity tests (`pytest tests -q`) fail if the two disagree.
 
 ## Testbench commands (simulation only; they do not talk to the ESP32)
@@ -76,9 +76,9 @@ Run from `projects/one_leg_testbench`, with `PY=../../mike_mujoco_ws/.venv/bin/p
 
 ```bash
 $PY -m pytest tests -q
-$PY -m one_leg_testbench.plan --points 25
-$PY -m one_leg_testbench.sim --viewer
-$PY -m one_leg_testbench.poses stand-sit --viewer
+$PY -m one_leg_control.plan --points 25
+$PY -m one_leg_control.sim --viewer
+$PY -m one_leg_control.poses stand-sit --viewer
 ```
 
 To move the real leg, paste a `shoulder,hip,knee` line into the Arduino Serial Monitor

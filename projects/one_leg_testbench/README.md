@@ -2,8 +2,8 @@
 
 Simulation and hardware testbench for the left-front (LF) leg, including work on two papers:
 
-- 2017 inverse-kinematics paper: the IK in `one_leg_testbench/leg.py` (repo-corrected q1 equation, negative knee branch for the left leg).
-- 2020 ground-compliance paper: Bezier swing (Table 1 control points) and sinusoidal stance in `one_leg_testbench/trajectory.py`.
+- 2017 inverse-kinematics paper: the IK in `one_leg_control/leg.py` (repo-corrected q1 equation, negative knee branch for the left leg).
+- 2020 ground-compliance paper: Bezier swing (Table 1 control points) and sinusoidal stance in `one_leg_control/trajectory.py`.
 
 ## Firmware calibration
 
@@ -54,14 +54,18 @@ projects/one_leg_testbench/firmware/one_leg_streaming/one_right_leg_streaming/on
 
 It uses channel 0 for the right shoulder, channel 1 for the right upper leg, and channel 2 for
 the right lower leg. Both left/right streaming sketches accept the same pulse protocol and boot
-with all outputs OFF. The existing Python bridge still contains left-leg ROS names and
-calibration, so the right-leg sketch requires a future right-leg bridge/calibration before it can
-follow RViz correctly.
+with all outputs OFF.
+
+The ROS side uses **one universal `esp32_serial_bridge.py` file**, not separate left- and
+right-bridge scripts. Terminal 1 selects the simulated side and Terminal 2 selects the matching
+physical side using `--leg left` or `--leg right`. The right profile uses the Mike
+repository's RF calibration values; they are not yet verified on this physical assembly, so
+commission one unloaded joint at a time before running assembled motion.
 
 ## Scope
 
-- Now: left-front leg only.
-- Next: right leg (needs RF calibration: RF_1 center -5.4 deg / direction -1, RF_2 -27.6, RF_3 88.2; mirrored signs and knee branch).
+- Now: selectable left-front and mirrored right-front MuJoCo/RViz one-leg testbenches.
+- Hardware: left leg verified; right leg uses repository RF calibration candidates and still needs physical commissioning.
 - Then: all four legs.
 
 ## Use
@@ -69,8 +73,8 @@ follow RViz correctly.
 ```bash
 cd projects/one_leg_testbench
 ../../mike_mujoco_ws/.venv/bin/python -m pytest tests -q
-../../mike_mujoco_ws/.venv/bin/python -m one_leg_testbench.plan     # angles + predicted PWM per step
-../../mike_mujoco_ws/.venv/bin/python -m one_leg_testbench.sim [--viewer]
+../../mike_mujoco_ws/.venv/bin/python -m one_leg_control.plan     # angles + predicted PWM per step
+../../mike_mujoco_ws/.venv/bin/python -m one_leg_control.sim [--viewer]
 ```
 
 `plan` prints lines that can be pasted into the sketch's Serial Monitor, followed by the PWM
@@ -78,7 +82,7 @@ values `leg.firmware_pwm()` predicts, so they can be compared with the sketch's 
 
 ### MuJoCo testbench motion in Cometyang RViz
 
-This runs physics and the suspended LF leg from `one_leg_testbench.sim`, while RViz displays the
+This runs physics and the suspended LF leg from `one_leg_control.sim`, while RViz displays the
 matching full Cometyang robot. The other nine joints are published at zero. It does not run the
 full-robot MuJoCo physics node. In ROS mode it starts in the stand pose and accepts the usual
 Cometyang Bool commands: `/stand_cmd`, `/idle_cmd` (sit), and `/walk_cmd`.
@@ -104,7 +108,19 @@ The previous Zhang Bezier/sinusoidal gait remains available on
 
 Start the suspended-leg MuJoCo viewer and Cometyang RViz together. `run_testbench` starts its
 own motion controller, disables the full-robot simulator and preset LF controller, and uses a
-world-fixed RViz view so the base-height transition is visible. Leave this terminal running:
+world-fixed RViz view so the base-height transition is visible. Rebuild once after changing the
+launch files:
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+colcon build --packages-select spot_micro_mujoco_sim --symlink-install
+source install/setup.bash
+```
+
+### Left leg — Terminal 1
 
 ```bash
 cd ~/Documents/spotmicro_project/mike_mujoco_ws
@@ -112,28 +128,77 @@ unset ROS_DOMAIN_ID
 source /opt/ros/humble/setup.bash
 source .venv/bin/activate
 source install/setup.bash
-ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py run_testbench:=true
+
+ros2 launch spot_micro_mujoco_sim one_leg_launch.py \
+  leg:=left \
+  run_testbench:=true
 ```
+
+### Right leg — Terminal 1
+
+```bash
+cd ~/Documents/spotmicro_project/mike_mujoco_ws
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+source .venv/bin/activate
+source install/setup.bash
+
+ros2 launch spot_micro_mujoco_sim one_leg_launch.py \
+  leg:=right \
+  run_testbench:=true
+```
+
+Use the same side in Terminal 1 and Terminal 2. The right mode loads the mirrored MuJoCo rig,
+uses the repository's positive-knee right-leg IK branch, publishes `front_right_*` joint states,
+and moves the right-front leg in RViz.
 
 ## **TERMINAL 2 — ESP32 bridge**
 
-For the physical leg, start the bridge in a fresh terminal without the virtual environment and
-leave it running. The default serial port is `/dev/ttyS0` at 115200 baud. This setup uses the
-flashed `firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino` sketch with the default
-`usec` protocol; without `--enable`, the bridge only prints commands.
+The default serial port is `/dev/ttyS0` at 115200 baud. Without `--enable`, the bridge only
+prints commands.
+
+### Left leg — current working command
+
+Flash `firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino`, then run:
 
 ```bash
+cd ~/Documents/spotmicro_project
 unset ROS_DOMAIN_ID
 source /opt/ros/humble/setup.bash
-python3 ~/Documents/spotmicro_project/projects/one_leg_testbench/esp32_serial_bridge.py --enable
+
+python3 projects/one_leg_testbench/esp32_serial_bridge.py \
+  --leg left \
+  --port /dev/ttyS0 \
+  --enable
 ```
 
-The bridge forwards the simulated front-left `/joint_states` to the ESP32 and may immediately
+### Right leg — current command with unverified physical calibration
+
+Flash `firmware/one_leg_streaming/one_right_leg_streaming/one_right_leg_streaming.ino`, then
+commission the right-leg calibration with the leg unloaded before assembled motion:
+
+```bash
+cd ~/Documents/spotmicro_project
+unset ROS_DOMAIN_ID
+source /opt/ros/humble/setup.bash
+
+python3 projects/one_leg_testbench/esp32_serial_bridge.py \
+  --leg right \
+  --port /dev/ttyS0 \
+  --enable
+```
+
+The right command is implemented, but its repository-derived RF calibration is not verified on
+this physical build. First run it without `--enable` to inspect its output, then test one servo
+and disconnected horn at a time. Keep the assembled leg clear when enabling all three channels.
+
+The bridge forwards the selected simulated leg's `/joint_states` to the ESP32 and may immediately
 command the current pose. Keep the leg clear and stay near the servo power switch; cut power if
 anything strains or hits a limit. Ctrl+C normally sends `offall`, but a serial failure can
 prevent it from arriving. The current pulse calibration uses a broad 500-2500 microsecond
 commissioning envelope; measure and configure narrower per-joint limits before unattended use,
-and verify the real leg against the simulation.
+and verify the real leg against the simulation. Always select the physical side explicitly with
+`--leg left` or `--leg right`; never use the left profile on the right assembly.
 
 For simulation only, omit Terminal 2.
 
@@ -182,14 +247,21 @@ ros2 topic pub --once /cometyang_walk_cmd std_msgs/msg/Bool "{data: true}"
 
 `/walk_cmd` is the moving Cometyang-style LF step; `/cometyang_walk_cmd` is its lift-only phase
 pattern; `/one_leg_testbench/command` with `walk`/`stop` is the Zhang gait. Do not start
-`one_leg_testbench.ros_node` in this combined mode; the MuJoCo testbench handles both gait topics.
+`one_leg_control.ros_node` in this combined mode; the MuJoCo testbench handles both gait topics.
 
 To command the angles directly using the Arduino sketch's serial format, publish
-`shoulder,hip,knee` in degrees. For example, the configured neutral reference is:
+`shoulder,hip,knee` in degrees on the selected side's topic. The left neutral reference is:
 
 ```bash
 ros2 topic pub --once /front_left_leg/angle_command std_msgs/msg/String \
 	"{data: '-7.6,38.6,-82.8'}"
+```
+
+The repository RF neutral reference for the right testbench is:
+
+```bash
+ros2 topic pub --once /front_right_leg/angle_command std_msgs/msg/String \
+	"{data: '-5.4,-27.6,88.2'}"
 ```
 
 The ROS node checks values against the firmware/simulator joint limits and slews each target by
@@ -236,7 +308,7 @@ ros2 topic pub --once /one_leg_testbench/motor_command std_msgs/msg/String "{dat
 These are output-release controls, not adjustable damping or torque control. Standard hobby
 servos driven through the PCA9685 provide position commands but no software torque setting.
 
-#### Continuous demo loop: walk, sit/stand, and joint angles
+#### Left-leg continuous demo loop: walk, sit/stand, and joint angles
 
 Run this in Terminal 3 after sourcing ROS, with Terminals 1 and 2 running. It walks for 15 seconds,
 then does three sit/stand cycles, holding each pose for 4 seconds, followed by separate
@@ -313,8 +385,8 @@ does not stop.
 ### Alternative: Paper Gait on Cometyang MuJoCo
 
 This alternative uses the Cometyang MuJoCo physics model and RViz; it does not run the suspended
-`one_leg_testbench.sim` rig. Start `front_left_leg_launch.py` with `use_mujoco_sim:=true` and
-`start_builtin_front_left_controller:=false`, then run `one_leg_testbench.ros_node` and publish
+`one_leg_control.sim` rig. Start `front_left_leg_launch.py` with `use_mujoco_sim:=true` and
+`start_builtin_front_left_controller:=false`, then run `one_leg_control.ros_node` and publish
 `walk`/`stop` on `/one_leg_testbench/command`:
 
 ```bash
@@ -338,7 +410,7 @@ source /opt/ros/humble/setup.bash
 source mike_mujoco_ws/.venv/bin/activate
 source mike_mujoco_ws/install/setup.bash
 export PYTHONPATH="$PWD/projects/one_leg_testbench:$PWD/mike_mujoco_ws/.venv/lib/python3.10/site-packages:${PYTHONPATH:-}"
-python -m one_leg_testbench.ros_node
+python -m one_leg_control.ros_node
 ```
 
 In a third sourced terminal, command the paper gait:
@@ -348,8 +420,8 @@ ros2 topic pub --once /one_leg_testbench/command std_msgs/String "{data: walk}"
 ros2 topic pub --once /one_leg_testbench/command std_msgs/String "{data: stop}"
 ```
 
-The standalone `one_leg_testbench.sim` and `one_leg_testbench.poses` modes use the suspended
-fixed-mount leg rig in `one_leg_testbench/model/left_leg_rig.xml`.
+The standalone `one_leg_control.sim` and `one_leg_control.poses` modes use the suspended
+fixed-mount leg rig in `one_leg_control/model/left_leg_rig.xml`.
 
 ## Limits
 

@@ -29,6 +29,19 @@ def _limits_rad() -> np.ndarray:
 
 # Intersection of the firmware window and the simulator ranges, in kinematic radians.
 LIMITS_RAD = _limits_rad()
+RIGHT_CENTER_DEG = np.array([-5.4, -27.6, 88.2])
+RIGHT_ROS_SIGN = np.array([1.0, -1.0, -1.0])
+_right_model_limits = np.sort(MODEL_RANGE_RAD * RIGHT_ROS_SIGN[:, None], axis=1)
+_right_servo_window = np.radians(
+    RIGHT_CENTER_DEG[:, None] + SERVO_WINDOW_DEG * np.array([-1.0, 1.0])
+)
+RIGHT_LIMITS_RAD = np.stack(
+    [
+        np.maximum(_right_model_limits[:, 0], _right_servo_window[:, 0]),
+        np.minimum(_right_model_limits[:, 1], _right_servo_window[:, 1]),
+    ],
+    axis=1,
+)
 
 _T12 = np.array([[0, 0, -1, 0], [-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=float)
 
@@ -50,15 +63,18 @@ def _wrap(angle: float) -> float:
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
-def inverse(point) -> np.ndarray | None:
-    """Kinematic angles reaching `point`, or None if unreachable; limits are checked separately."""
+def inverse(point, side: str = "left") -> np.ndarray | None:
+    """Kinematic angles reaching ``point`` using the repository's side-specific IK branch."""
+    if side not in ("left", "right"):
+        raise ValueError("side must be 'left' or 'right'")
     x, y, z = point
     radial_sq = x * x + y * y - L1 * L1
     d = (x * x + y * y + z * z - L1 * L1 - L2 * L2 - L3 * L3) / (2 * L2 * L3)
     if radial_sq < 0 or abs(d) > 1:
         return None
     root = math.sqrt(radial_sq)
-    q3 = math.atan2(-math.sqrt(1 - d * d), d)  # left legs use the negative knee branch
+    knee_root = math.sqrt(1 - d * d)
+    q3 = math.atan2(-knee_root if side == "left" else knee_root, d)
     q2 = math.atan2(z, root) - math.atan2(L3 * math.sin(q3), L2 + L3 * math.cos(q3))
     q1 = math.atan2(y, x) + math.atan2(root, -L1)
     return np.array([_wrap(q1), _wrap(q2), _wrap(q3)])
@@ -69,12 +85,67 @@ def violated_joints(q, tolerance: float = 1e-9) -> list[int]:
     return [i for i in range(3) if not LIMITS_RAD[i, 0] - tolerance <= q[i] <= LIMITS_RAD[i, 1] + tolerance]
 
 
+def violated_joints_side(q, side: str, tolerance: float = 1e-9) -> list[int]:
+    limits = LIMITS_RAD if side == "left" else RIGHT_LIMITS_RAD
+    q = np.asarray(q)
+    return [
+        i
+        for i in range(3)
+        if not limits[i, 0] - tolerance <= q[i] <= limits[i, 1] + tolerance
+    ]
+
+
 def to_ros(q) -> np.ndarray:
     return ROS_SIGN * np.asarray(q)
 
 
 def from_ros(q) -> np.ndarray:
     return ROS_SIGN * np.asarray(q)
+
+
+def ros_sign(side: str) -> np.ndarray:
+    """Kinematic-to-ROS signs used by the Cometyang left/right front joints."""
+    if side == "left":
+        return np.array([-1.0, 1.0, 1.0])
+    if side == "right":
+        return np.array([1.0, -1.0, -1.0])
+    raise ValueError("side must be 'left' or 'right'")
+
+
+def to_ros_side(q, side: str) -> np.ndarray:
+    return ros_sign(side) * np.asarray(q)
+
+
+def from_ros_side(q, side: str) -> np.ndarray:
+    return ros_sign(side) * np.asarray(q)
+
+
+def mirrored_angles(q, side: str) -> np.ndarray:
+    """Map a canonical left-branch pose to the same foot target on the selected side."""
+    q = np.asarray(q)
+    if side == "left":
+        return q.copy()
+    # The repository's right-leg frame uses the opposite body-to-leg rotation.
+    # Reflect its local z coordinate before selecting the positive-knee branch.
+    point = forward(q)
+    point[2] *= -1.0
+    result = inverse(point, side="right")
+    if result is None:
+        raise ValueError("pose is unreachable on mirrored right-leg branch")
+    return result
+
+
+def canonical_angles(q, side: str) -> np.ndarray:
+    """Map selected-side kinematic angles back to the canonical left trajectory branch."""
+    q = np.asarray(q)
+    if side == "left":
+        return q.copy()
+    point = forward(q)
+    point[2] *= -1.0
+    result = inverse(point, side="left")
+    if result is None:
+        raise ValueError("right-leg pose cannot be mirrored onto the left trajectory branch")
+    return result
 
 
 def firmware_line(q) -> str:
@@ -102,5 +173,25 @@ def kinematic_from_mujoco(p) -> np.ndarray:
     return np.array([-p[1], p[2], -p[0]])
 
 
+def kinematic_from_mujoco_side(p, side: str) -> np.ndarray:
+    """Convert a mirrored MuJoCo leg-local point to the shared kinematic frame."""
+    p = np.asarray(p)
+    if side == "left":
+        return kinematic_from_mujoco(p)
+    if side == "right":
+        return np.array([p[1], p[2], -p[0]])
+    raise ValueError("side must be 'left' or 'right'")
+
+
 def mujoco_from_kinematic(p) -> np.ndarray:
     return np.array([-p[2], -p[0], p[1]])
+
+
+def mujoco_from_kinematic_side(p, side: str) -> np.ndarray:
+    point = mujoco_from_kinematic(p)
+    if side == "left":
+        return point
+    if side == "right":
+        point[1] *= -1.0
+        return point
+    raise ValueError("side must be 'left' or 'right'")

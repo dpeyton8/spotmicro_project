@@ -5,8 +5,8 @@ with Ground Compliance Estimation," Applied Bionics and Biomechanics, 2020,
 Article 8854411 (`docs/Leg Locomotion Adaption for Quadruped Robot.pdf`).
 Equation numbers below are the paper's printed numbers (pages 3-7).
 
-Mode distinction: the standalone `one_leg_testbench.sim` gait, optional
-`one_leg_testbench.ros_node`, and ROS `/one_leg_testbench/command` use Zhang's
+Mode distinction: the standalone `one_leg_control.sim` gait, optional
+`one_leg_control.ros_node`, and ROS `/one_leg_testbench/command` use Zhang's
 Bezier/sinusoidal paths. In the same ROS testbench process, `/walk_cmd` runs a
 moving Cometyang-style LF stride using `/cmd_vel` linear.x for stance motion and
 touchdown (default 0.04 m/s, capped at 0.08 m/s; swing clearance is reduced to

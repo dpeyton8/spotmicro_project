@@ -11,7 +11,10 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/mujoco_sim_launch.py']),
-        ('share/' + package_name + '/launch', ['launch/front_left_leg_launch.py']),
+        ('share/' + package_name + '/launch', [
+            'launch/one_leg_launch.py',
+            'launch/front_left_leg_launch.py',
+        ]),
         ('share/' + package_name + '/models', ['models/spot_micro_sim.xml']),
         ('share/' + package_name + '/rviz', ['rviz/front_left_testbench.rviz']),
     ],

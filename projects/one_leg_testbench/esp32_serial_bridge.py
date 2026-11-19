@@ -3,9 +3,13 @@
 
 Subscribes to /joint_states (published by the testbench with --ros), so the physical
 leg follows whatever the sim does: stand, sit, repo/zhang walk and angle commands.
+Select the physical leg with --leg left or --leg right and launch the matching
+one-leg MuJoCo side. The right profile uses the mirrored right-leg IK motion and
+the Mike repository's RF servo calibration.
+
 Protocols:
   usec    (default) "set <channel> <usec>" for the required bridge sketch
-          firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino. Valid
+          matching firmware/one_leg_streaming sketch. Valid
           testbench angles are mapped across the broad 500..2500 us commissioning
           envelope; determine narrower per-joint hardware limits before unattended use.
   degrees "shoulder,hip,knee\\n" for the alternative (untested)
@@ -15,8 +19,9 @@ SAFE BY DEFAULT: nothing is written to the serial port unless --enable is given;
 without it the bridge only prints what it would send. Servo calibration below is derived
 from the old PWM-count sketch and is UNVERIFIED on hardware.
 
-  python3 esp32_serial_bridge.py                          # print only
-  python3 esp32_serial_bridge.py --port /dev/ttyS0 --enable
+  python3 esp32_serial_bridge.py --leg left                         # print only
+  python3 esp32_serial_bridge.py --leg left --port /dev/ttyS0 --enable
+  python3 esp32_serial_bridge.py --leg right --port /dev/ttyS0 --enable
 """
 import argparse
 import math
@@ -28,14 +33,21 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
 from std_msgs.msg import String
 
-# joint name, PCA9685 channel, ROS sign, center angle (kinematic deg), direction
-JOINT_TABLE = (
+# Source joint name, PCA9685 channel, ROS-to-kinematic sign, servo-center angle
+# (kinematic degrees), servo direction. Each profile consumes its matching
+# selectable one-leg simulation and applies the Mike repository calibration.
+LEG_PROFILES = {
+    "left": (
     ("front_left_shoulder", 0, -1.0, -7.6, 1),
     ("front_left_leg", 1, 1.0, 38.6, 1),
     ("front_left_foot", 2, 1.0, -82.8, 1),
-)
-JOINTS = tuple(row[0] for row in JOINT_TABLE)
-ROS_SIGN = tuple(row[2] for row in JOINT_TABLE)  # ROS angle = ROS_SIGN * kinematic angle
+    ),
+    "right": (
+        ("front_right_shoulder", 0, 1.0, -5.4, -1),
+        ("front_right_leg", 1, -1.0, -27.6, 1),
+        ("front_right_foot", 2, -1.0, 88.2, 1),
+    ),
+}
 CENTER_US = 1500
 # Broad commissioning envelope. The simulator/firmware joint-angle limits remain the
 # primary command limits. These bounds only reject malformed/out-of-envelope serial
@@ -43,7 +55,10 @@ CENTER_US = 1500
 COMMISSIONING_MIN_US, COMMISSIONING_MAX_US = 500, 2500
 # Old sketch: 389 PWM counts (4.883 us each at 50 Hz) span 165 degrees.
 US_PER_DEG = 389 * (20000.0 / 4096.0) / 165.0
-SHAKE_TARGET_DEG = (-7.6, -43.9, -60.0)
+SHAKE_TARGETS_DEG = {
+    "left": (-7.6, -43.9, -60.0),
+    "right": (-7.6, 43.9, 60.0),
+}
 SHAKE_TOLERANCE_DEG = 1.0
 SHAKE_SETTLE_SECONDS = 1.0
 SHAKE_RELEASE_TIMEOUT_SECONDS = 4.0
@@ -56,8 +71,12 @@ def angle_to_us(angle_deg, center_deg, direction):
 
 
 class Esp32Bridge(Node):
-    def __init__(self, port, baud, rate_hz, enable, protocol):
+    def __init__(self, port, baud, rate_hz, enable, protocol, leg):
         super().__init__("esp32_serial_bridge")
+        self.leg = leg
+        self.joint_table = LEG_PROFILES[leg]
+        self.joints = tuple(row[0] for row in self.joint_table)
+        self.shake_target_deg = SHAKE_TARGETS_DEG[leg]
         self.enable = enable
         self.protocol = protocol
         self.period = 1.0 / rate_hz
@@ -74,9 +93,16 @@ class Esp32Bridge(Node):
             self.serial = serial.Serial(port, baud, timeout=0.01)
             time.sleep(2.0)  # ESP32 may reset when the port opens
             self.serial.write(b"offall\n")
-            self.get_logger().info(f"Connected to {port} @ {baud}, protocol={protocol}")
+            self.get_logger().info(
+                f"Connected to {port} @ {baud}, leg={leg}, protocol={protocol}"
+            )
         else:
             self.get_logger().warn("Dry run: add --enable to write to the serial port")
+        if leg == "right":
+            self.get_logger().warning(
+                "RIGHT profile uses unverified Mike RF servo calibration; "
+                "commission one unloaded joint at a time before assembled motion"
+            )
         self.create_subscription(JointState, "/joint_states", self.on_joint_state, 10)
         self.create_subscription(String, "/one_leg_testbench/command", self.on_command, 10)
         self.create_subscription(String, "/front_left_leg/angle_command", self.on_angle_command, 10)
@@ -166,7 +192,7 @@ class Esp32Bridge(Node):
             self.enable_all_outputs(command)
 
     def joint_degrees(self, positions):
-        return [math.degrees(positions[row[0]]) * row[2] for row in JOINT_TABLE]
+        return [math.degrees(positions[row[0]]) * row[2] for row in self.joint_table]
 
     def build_lines(self, positions, degrees=None):
         degrees = self.joint_degrees(positions) if degrees is None else degrees
@@ -174,7 +200,7 @@ class Esp32Bridge(Node):
             return [",".join(f"{value:.1f}" for value in degrees)]
         return [
             f"set {row[1]} {angle_to_us(deg, row[3], row[4])}"
-            for row, deg in zip(JOINT_TABLE, degrees)
+            for row, deg in zip(self.joint_table, degrees)
         ]
 
     def on_joint_state(self, msg):
@@ -182,14 +208,14 @@ class Esp32Bridge(Node):
         if now - self.last_sent < self.period:
             return
         positions = dict(zip(msg.name, msg.position))
-        if not all(name in positions for name in JOINTS):
+        if not all(name in positions for name in self.joints):
             return
         degrees = self.joint_degrees(positions)
 
         if self.release_after_shake:
             at_target = max(
                 abs(actual - target)
-                for actual, target in zip(degrees, SHAKE_TARGET_DEG)
+                for actual, target in zip(degrees, self.shake_target_deg)
             ) <= SHAKE_TOLERANCE_DEG
             if at_target:
                 if self.release_deadline is None:
@@ -221,7 +247,7 @@ class Esp32Bridge(Node):
             return
         lines = self.build_lines(positions, degrees)
         enabled_lines = [
-            line for row, line in zip(JOINT_TABLE, lines) if row[1] in self.enabled_channels
+            line for row, line in zip(self.joint_table, lines) if row[1] in self.enabled_channels
         ]
         if lines == self.last_lines:
             return
@@ -248,10 +274,16 @@ def main():
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--rate", type=float, default=10.0, help="max send rate in Hz")
     parser.add_argument("--protocol", choices=("usec", "degrees"), default="usec")
+    parser.add_argument(
+        "--leg",
+        choices=("left", "right"),
+        default="left",
+        help="physical leg profile; use the matching Terminal 1 simulation side",
+    )
     parser.add_argument("--enable", action="store_true", help="actually write to the serial port")
     args = parser.parse_args()
     rclpy.init()
-    node = Esp32Bridge(args.port, args.baud, args.rate, args.enable, args.protocol)
+    node = Esp32Bridge(args.port, args.baud, args.rate, args.enable, args.protocol, args.leg)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
