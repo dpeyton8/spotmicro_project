@@ -4,8 +4,15 @@ The horn is fixed to the printed leg, so each servo is centered electrically fir
 and then pushed onto the horn with the leg held at its neutral pose. Servos stay
 out of the leg until they have been centered.
 
-Sketches: `projects/one_leg_testbench/firmware/one_left_leg_servo_test.ino` (calibration) and
-`projects/one_leg_testbench/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino` (angle control).
+Sketches:
+
+- `projects/one_leg_testbench/firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino`
+  is the firmware to flash for calibration and the ROS serial bridge.
+- `projects/one_leg_testbench/firmware/one_left_leg_angle_streaming/one_left_leg_angle_streaming.ino`
+  is an alternative direct-degree streaming experiment without `off` commands.
+- `projects/one_leg_testbench/firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino`
+  is the blocking manual Serial Monitor angle test.
+
 Channels: 0 = shoulder (q1), 1 = hip (q2), 2 = knee (q3).
 
 ## Before powering anything
@@ -18,7 +25,8 @@ Channels: 0 = shoulder (q1), 1 = hip (q2), 2 = knee (q3).
 
 ## Procedure
 
-1. Flash `one_left_leg_servo_test.ino`. Open Serial Monitor at 115200 baud. Outputs start OFF.
+1. Flash `one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino`. Open Serial Monitor at 115200
+   baud. Outputs start OFF; this firmware has no boot/default joint angles.
 2. Work on one servo at a time, loose on the bench, not attached to the leg.
    Plug it into channel 0, then repeat for channels 1 and 2.
 3. Send `center 0` (then `center 1`, `center 2`). The servo goes to its 1500 us center
@@ -42,9 +50,15 @@ limits and is **not a safe operating range** for the assembled leg. Approach an
 unknown endpoint in small increments, one unloaded joint at a time, and replace the
 broad values with measured per-joint limits before normal or unattended operation.
 
-## Check against the angle sketch
+## Boot pose versus calibration neutral
 
-The servo test sketch does not call `setOscillatorFrequency(27000000)`; the angle sketch does.
+The bridge firmware starts with every output OFF. After the ROS bridge connects, the first pose
+comes from `/joint_states`; the normal testbench startup pose is stand `0.0,50.1,-98.7` degrees.
+The separate calibration-neutral reference is `-7.6,38.6,-82.8` degrees.
+
+## Check against the manual angle sketch
+
+The bridge streaming sketch does not call `setOscillatorFrequency(27000000)`; the manual angle sketch does.
 `center` (1500 us) and the angle sketch's neutral (PWM count 306) can therefore land on slightly
 different shaft positions (calculated about 0.1 ms apart if the chip runs at 25 MHz; not measured).
 After mounting, flash the angle sketch, let it go to neutral, and trim again if the leg is off.
@@ -73,4 +87,5 @@ prints with the testbench output. Keep the leg suspended with the toe off the gr
 the first run. Note that `moveJoint()` in the sketch always restarts from the center
 angle, so the real leg passes through the default position between commands.
 
-Nothing here has been tested on the physical leg.
+The bridge firmware and one-leg commands have been exercised on the physical leg; the broad
+commissioning endpoints still require measured per-joint safety limits.

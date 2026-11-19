@@ -1,6 +1,7 @@
-// Streaming version of one_left_leg_angle_control for the ROS serial bridge.
-// Accepts "shoulder,hip,knee\n" (degrees) at any rate, slews smoothly toward the
-// latest target without blocking, and clamps to the calibrated joint range.
+// Alternative direct-angle streaming firmware.
+// Accepts "shoulder,hip,knee\n" in degrees, slews toward the latest target,
+// and clamps to the calibrated angle range. This sketch does NOT implement
+// off/offall and therefore is not the firmware used for shake release.
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
@@ -12,8 +13,8 @@ constexpr uint16_t PWM_FREQUENCY_HZ = 50;
 constexpr float MAX_JOINT_ANGLE_DEG = 82.5f;
 constexpr uint16_t PWM_MIN = 80;
 constexpr uint16_t PWM_MAX = 520;
-constexpr float MAX_STEP_DEG = 1.0f;         // per update
-constexpr uint32_t UPDATE_INTERVAL_MS = 10;  // 100 deg/s max slew
+constexpr float MAX_STEP_DEG = 1.0f;
+constexpr uint32_t UPDATE_INTERVAL_MS = 10;
 
 struct Joint {
   uint8_t channel;
@@ -25,7 +26,6 @@ struct Joint {
   float targetDeg;
 };
 
-// Channel 0 = shoulder/q1, 1 = hip/q2, 2 = knee/q3 (left-front leg calibration).
 Joint leg[] = {
   {0, 306, 389, 1,  -7.6f,  -7.6f,  -7.6f},
   {1, 306, 397, 1,  38.6f,  38.6f,  38.6f},

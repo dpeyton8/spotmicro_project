@@ -197,6 +197,37 @@ class FirmwareParity(unittest.TestCase):
             self.assertTrue(np.all(pwm > leg.PWM_MIN + 20) and np.all(pwm < leg.PWM_MAX - 20), pwm)
 
 
+class BridgeFirmware(unittest.TestCase):
+    INO = (
+        Path(__file__).resolve().parents[1]
+        / "firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino"
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        cls.source = cls.INO.read_text()
+
+    def test_required_bridge_protocol_is_present(self):
+        for command in ('"set"', '"off"', '"offall"'):
+            self.assertIn(command, self.source)
+
+    def test_outputs_start_off(self):
+        setup = self.source.split("void setup()", 1)[1].split("void loop()", 1)[0]
+        self.assertIn("disableAll();", setup)
+
+    def test_parallel_right_leg_firmware_uses_same_channels_and_protocol(self):
+        right = (
+            Path(__file__).resolve().parents[1]
+            / "firmware/one_leg_streaming/one_right_leg_streaming/one_right_leg_streaming.ino"
+        ).read_text()
+        self.assertIn("right shoulder/q1", right)
+        self.assertIn("right upper leg/hip/q2", right)
+        self.assertIn("right lower leg/knee/q3", right)
+        self.assertIn("constexpr uint8_t SERVO_CHANNELS[] = {0, 1, 2};", right)
+        for command in ('"set"', '"off"', '"offall"'):
+            self.assertIn(command, right)
+
+
 @unittest.skipIf(mujoco is None, "mujoco not installed")
 class MujocoSimulation(unittest.TestCase):
     def test_leg_lands_and_alternates_stance_and_swing_contact(self):

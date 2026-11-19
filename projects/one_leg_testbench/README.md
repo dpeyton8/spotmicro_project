@@ -12,6 +12,52 @@ The testbench never redefines calibration: `tests/test_one_leg_testbench.py::Fir
 the joint table (channels, center PWM, ranges, direction, center angles), `MAX_JOINT_ANGLE_DEG`
 or `PWM_MIN/MAX` differ from `leg.py`.
 
+### Firmware to flash for the ROS serial bridge
+
+In Arduino IDE, flash this exact sketch to the ESP32:
+
+```text
+projects/one_leg_testbench/firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino
+```
+
+Select the ESP32 board and its serial port, and install Adafruit's **PWM Servo Driver Library**
+(plus **Adafruit BusIO** when prompted). This is the firmware used by the bridge's default
+`usec` protocol and by `shake`, `shake_off`, and the individual motor-release commands. It
+accepts `set <channel> <microseconds>`, `off <channel>`, and `offall`.
+
+The streaming bridge firmware deliberately commands **no default joint angles at boot**. All
+three PCA9685 outputs start OFF. Once `esp32_serial_bridge.py --enable` connects and receives
+`/joint_states`, it commands the current simulated pose. The ROS testbench normally starts at
+the repository stand pose:
+
+```text
+q1 = 0.0 degrees, q2 = 50.1 degrees, q3 = -98.7 degrees
+```
+
+The servo calibration-neutral reference is a different pose:
+
+```text
+q1 = -7.6 degrees, q2 = 38.6 degrees, q3 = -82.8 degrees
+```
+
+The alternative `firmware/one_left_leg_angle_streaming/one_left_leg_angle_streaming.ino`
+accepts comma-separated degree targets but has no `off` commands, so do not use it for the
+current shake/motor-release demonstration. The blocking
+`firmware/one_left_leg_angle_control/one_left_leg_angle_control.ino` is a manual Serial Monitor
+angle test, not the ROS bridge firmware.
+
+A parallel right-leg pulse-level sketch is available at:
+
+```text
+projects/one_leg_testbench/firmware/one_leg_streaming/one_right_leg_streaming/one_right_leg_streaming.ino
+```
+
+It uses channel 0 for the right shoulder, channel 1 for the right upper leg, and channel 2 for
+the right lower leg. Both left/right streaming sketches accept the same pulse protocol and boot
+with all outputs OFF. The existing Python bridge still contains left-leg ROS names and
+calibration, so the right-leg sketch requires a future right-leg bridge/calibration before it can
+follow RViz correctly.
+
 ## Scope
 
 - Now: left-front leg only.
@@ -73,8 +119,8 @@ ros2 launch spot_micro_mujoco_sim front_left_leg_launch.py run_testbench:=true
 
 For the physical leg, start the bridge in a fresh terminal without the virtual environment and
 leave it running. The default serial port is `/dev/ttyS0` at 115200 baud. This setup uses the
-ESP32 commissioning firmware (`set <channel> <usec>`); without `--enable`, the bridge only
-prints commands.
+flashed `firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino` sketch with the default
+`usec` protocol; without `--enable`, the bridge only prints commands.
 
 ```bash
 unset ROS_DOMAIN_ID

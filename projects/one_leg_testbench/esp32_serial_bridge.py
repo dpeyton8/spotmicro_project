@@ -4,11 +4,12 @@
 Subscribes to /joint_states (published by the testbench with --ros), so the physical
 leg follows whatever the sim does: stand, sit, repo/zhang walk and angle commands.
 Protocols:
-  usec    (default) "set <channel> <usec>" for the commissioning sketch
-          one_left_leg_servo_test.ino. Valid testbench angles are mapped across the
-          broad 500..2500 us commissioning envelope; determine narrower per-joint
-          hardware limits before unattended operation.
-  degrees "shoulder,hip,knee\\n" for the (untested) one_left_leg_streaming.ino.
+  usec    (default) "set <channel> <usec>" for the required bridge sketch
+          firmware/one_leg_streaming/one_left_leg_streaming/one_left_leg_streaming.ino. Valid
+          testbench angles are mapped across the broad 500..2500 us commissioning
+          envelope; determine narrower per-joint hardware limits before unattended use.
+  degrees "shoulder,hip,knee\\n" for the alternative (untested)
+          one_left_leg_angle_streaming.ino, which does not support motor release.
 
 SAFE BY DEFAULT: nothing is written to the serial port unless --enable is given;
 without it the bridge only prints what it would send. Servo calibration below is derived

@@ -1,13 +1,13 @@
 /*
-  SpotMicro left-front-leg manual servo commissioning tool.
+  SpotMicro LEFT-leg ROS serial-bridge firmware.
 
-  Hardware:
-    ESP32
-    PCA9685 at I2C address 0x40
-    q1/q2/q3 servos on PCA9685 channels 0/1/2
+  PCA9685 address 0x40:
+    channel 0 = left shoulder/q1
+    channel 1 = left upper leg/hip/q2
+    channel 2 = left lower leg/knee/q3
 
-  There is intentionally no automatic sweep. Mount the leg in a fixture and
-  calibrate one disconnected horn/servo at a time.
+  Protocol: set <channel> <usec>, off <channel>, offall.
+  Boot behavior: all outputs OFF; joint targets come from the ROS bridge.
 */
 
 #include <Wire.h>
@@ -16,10 +16,8 @@
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 
 constexpr uint8_t SERVO_CHANNELS[] = {0, 1, 2};
-// Broad commissioning envelope so the testbench can discover the assembled
-// leg's real limits. Replace these with measured per-joint limits afterward.
 constexpr uint16_t COMMISSIONING_MIN_US = 500;
-constexpr uint16_t SAFE_CENTER_US = 1500;
+constexpr uint16_t CENTER_US = 1500;
 constexpr uint16_t COMMISSIONING_MAX_US = 2500;
 
 bool isLegChannel(int channel) {
@@ -38,9 +36,10 @@ void disableAll() {
 }
 
 void printHelp() {
+  Serial.println("LEFT LEG: ch0 shoulder/q1, ch1 upper/hip/q2, ch2 lower/knee/q3");
   Serial.println("Commands:");
-  Serial.println("  center <channel>       center channel 0, 1, or 2");
-  Serial.println("  set <channel> <usec>   command 500..2500 microseconds (commissioning)");
+  Serial.println("  center <channel>       command 1500 us on channel 0, 1, or 2");
+  Serial.println("  set <channel> <usec>   command 500..2500 us (commissioning)");
   Serial.println("  off <channel>          stop pulses on one channel");
   Serial.println("  offall                 stop pulses on all leg channels");
 }
@@ -52,7 +51,7 @@ void setup() {
   pwm.setPWMFreq(50);
   delay(10);
   disableAll();
-  Serial.println("SpotMicro one-leg servo test ready; outputs are OFF.");
+  Serial.println("SpotMicro LEFT-leg streaming bridge ready; outputs are OFF.");
   printHelp();
 }
 
@@ -91,8 +90,8 @@ void loop() {
     return;
   }
   if (verb == "center") {
-    pwm.writeMicroseconds(static_cast<uint8_t>(channel), SAFE_CENTER_US);
-    Serial.printf("Channel %d = %u us\n", channel, SAFE_CENTER_US);
+    pwm.writeMicroseconds(static_cast<uint8_t>(channel), CENTER_US);
+    Serial.printf("Channel %d = %u us\n", channel, CENTER_US);
     return;
   }
   if (verb == "set" && secondSpace >= 0) {
